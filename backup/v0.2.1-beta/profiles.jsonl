@@ -1,0 +1,9 @@
+{"type": "SET_FIELDS", "family_id": "fam_999", "payload": {"parent_name": "Updated Parent"}, "ts": "2025-08-06T02:06:39.003645"}
+{"type": "ADD_MEMBER", "family_id": "fam_999", "chat_id": 888, "ts": "2025-08-06T02:06:39.003777"}
+{"type": "UPSERT_PROFILE", "payload": {"family_id": "fam_999", "creator_chat_id": 999, "members": [999], "parent_name": "Test Parent", "parent_age": null, "timezone": "UTC", "children": [], "health_notes": "", "lifestyle_tags": [], "created_at": "2025-08-06T10:36:59.944772", "updated_at": "2025-08-06T10:36:59.944772", "version": 1, "complete": false}, "ts": "2025-08-06T10:36:59.945009"}
+{"type": "SET_FIELDS", "family_id": "fam_999", "payload": {"parent_name": "Updated Parent"}, "ts": "2025-08-06T10:36:59.945510"}
+{"type": "ADD_MEMBER", "family_id": "fam_999", "chat_id": 888, "ts": "2025-08-06T10:36:59.945666"}
+{"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"parent_name": "Rodrigo", "parent_age": 35, "timezone": "America/Sao_Paulo", "children": [{"name": "Amelie", "age_years": 8.0, "sex": "f"}], "health_notes": "no", "lifestyle_tags": ["divorced parents"]}, "ts": "2025-08-06T16:28:26.015745"}
+{"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"complete": true}, "ts": "2025-08-06T16:28:26.017529"}
+{"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"parent_name": "Rodrigo", "parent_age": 35, "timezone": "America/Sao_Paulo", "children": [{"name": "Amelie", "age_years": 8.0, "sex": "f"}], "health_notes": "no", "lifestyle_tags": ["divorced parents"]}, "ts": "2025-08-06T18:07:52.632022"}
+{"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"complete": true}, "ts": "2025-08-06T18:07:52.633767"}

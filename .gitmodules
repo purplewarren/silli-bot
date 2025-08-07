@@ -1,0 +1,3 @@
+[submodule "silli-meter"]
+	path = silli-meter
+	url = https://github.com/purplewarren/silli-meter.git

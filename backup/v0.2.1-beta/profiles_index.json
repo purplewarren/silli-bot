@@ -1,0 +1,58 @@
+{
+  "fam_111": {
+    "family_id": "fam_111",
+    "creator_chat_id": 111,
+    "members": [
+      111
+    ],
+    "parent_name": "Sarah Johnson",
+    "parent_age": 32,
+    "timezone": "America/New_York",
+    "children": [
+      {
+        "name": "Emma",
+        "age_years": 4.5,
+        "sex": "f"
+      },
+      {
+        "name": "Liam",
+        "age_years": 2.0,
+        "sex": "m"
+      }
+    ],
+    "health_notes": "",
+    "lifestyle_tags": [
+      "vegetarian",
+      "outdoor_activities"
+    ],
+    "created_at": "2025-08-05 22:39:30.174860",
+    "updated_at": "2025-08-05 22:39:30.175836",
+    "version": 1,
+    "complete": true
+  },
+  "fam_2130406580": {
+    "family_id": "fam_2130406580",
+    "creator_chat_id": 2130406580,
+    "members": [
+      2130406580
+    ],
+    "parent_name": "Rodrigo",
+    "parent_age": 35,
+    "timezone": "America/Sao_Paulo",
+    "children": [
+      {
+        "name": "Amelie",
+        "age_years": 8.0,
+        "sex": "f"
+      }
+    ],
+    "health_notes": "no",
+    "lifestyle_tags": [
+      "divorced parents"
+    ],
+    "created_at": "2025-08-06 16:28:26.012877",
+    "updated_at": "2025-08-06 18:07:52.633571",
+    "version": 1,
+    "complete": true
+  }
+}
