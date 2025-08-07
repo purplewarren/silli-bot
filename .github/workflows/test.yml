@@ -1,0 +1,58 @@
+name: Test Silli Bot
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run linting
+      run: |
+        python -m flake8 bot/ --max-line-length=120 --ignore=E501,W503
+        python -m flake8 reasoner/ --max-line-length=120 --ignore=E501,W503
+        
+    - name: Run tests
+      run: |
+        python -m pytest tests/ -v
+        
+    - name: Validate reasoner configuration
+      run: |
+        python -c "from reasoner.app import app; print('✅ Reasoner app imports successfully')"
+        
+    - name: Validate bot configuration
+      run: |
+        python -c "from bot.main import main; print('✅ Bot main imports successfully')"
+        
+    - name: Check data files
+      run: |
+        echo "Checking data directory structure..."
+        ls -la data/
+        echo "✅ Data directory validation complete"
