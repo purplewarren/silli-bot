@@ -6,269 +6,330 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.filters import Command
 from typing import List
 from bot.profiles import profiles, Child
+from bot.storage import Storage, EventRecord
+from datetime import datetime
 from loguru import logger
 
+# ========== STORAGE INSTANCE ==========
+storage = Storage()
+
 # ========== STATES ==========
-class OnboardStates(StatesGroup):
-    AskParentName = State()
-    AskParentAge = State()
-    AskTimezone = State()
-    AskChildName = State()
-    AskChildAge = State()
-    AskChildSex = State()
-    AskAddAnotherChild = State()
-    AskHealthNotes = State()
-    AskLifestyleTags = State()
-    Confirm = State()
+class Onboarding(StatesGroup):
+    waiting_for_consent = State()
+    waiting_for_family_choice = State()
+    waiting_for_new_family_name = State()
+    waiting_for_family_id = State()
+    verifying_2fa = State()
 
 # ========== ROUTER ==========
 router_onboarding = Router()
 
-# ========== CONSTANTS ==========
-TIMEZONES = [
-    "America/Sao_Paulo",
-    "America/New_York",
-    "Europe/London",
-    "Europe/Berlin",
-    "Asia/Tokyo",
-    "UTC"
-]
-SEX_LABELS = {"m": "Boy", "f": "Girl", "na": "N/A"}
+# ========== INLINE BUTTONS ==========
+def consent_buttons():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Accept", callback_data="accept_consent")],
+        [InlineKeyboardButton(text="Decline", callback_data="decline_consent")]
+    ])
 
-# ========== HANDLERS ==========
-@router_onboarding.message(Command("onboard"))
-async def start_onboarding(message: Message, state: FSMContext):
-    await state.clear()
-    await state.set_state(OnboardStates.AskParentName)
-    await message.reply(
-        "Let's set up your Family Profile.\n\nWhat's your first name?",
-    )
+def family_choice_buttons():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Create New Family Profile", callback_data="create_family")]
+    ])
 
-@router_onboarding.message(OnboardStates.AskParentName)
-async def ask_parent_age(message: Message, state: FSMContext):
-    name = message.text.strip()
-    if not name or len(name) < 2:
-        await message.reply("Please enter a valid name.")
-        return
-    await state.update_data(parent_name=name)
-    await state.set_state(OnboardStates.AskParentAge)
-    await message.reply("How old are you? (optional, send a number or skip)")
-
-@router_onboarding.message(OnboardStates.AskParentAge)
-async def ask_timezone(message: Message, state: FSMContext):
-    text = message.text.strip()
-    age = None
-    if text.isdigit():
-        age = int(text)
-        if not (12 <= age <= 100):
-            await message.reply("Please enter a reasonable age (12-100), or skip.")
-            return
-    await state.update_data(parent_age=age)
-    await state.set_state(OnboardStates.AskTimezone)
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=tz, callback_data=f"tz:{tz}")] for tz in TIMEZONES]
-    )
-    await message.reply("Pick your timezone:", reply_markup=kb)
-
-@router_onboarding.callback_query(F.data.startswith("tz:"), OnboardStates.AskTimezone)
-async def ask_child_name(cb: CallbackQuery, state: FSMContext):
-    tz = cb.data.split(":", 1)[1]
-    await state.update_data(timezone=tz)
-    await state.set_state(OnboardStates.AskChildName)
-    await cb.message.edit_text(f"Timezone set to {tz}.\n\nWhat's your child's first name?")
-    await cb.answer()
-
-@router_onboarding.message(OnboardStates.AskChildName)
-async def ask_child_age(message: Message, state: FSMContext):
-    name = message.text.strip()
-    if not name or len(name) < 2:
-        await message.reply("Please enter a valid name.")
-        return
-    await state.update_data(child_name=name)
-    await state.set_state(OnboardStates.AskChildAge)
-    await message.reply(f"How old is {name}? (years, e.g. 4.5)")
-
-@router_onboarding.message(OnboardStates.AskChildAge)
-async def ask_child_sex(message: Message, state: FSMContext):
+# ========== /START HANDLER ==========
+@router_onboarding.message(Command("start"))
+async def start_handler(message: Message, state: FSMContext):
+    """Handle /start command with consent flow."""
     try:
-        age = float(message.text.strip())
-        if not (0 < age < 25):
-            await message.reply("Please enter a reasonable age (0-25). Try again.")
-            return
-    except Exception:
-        await message.reply("Please enter a number, e.g. 4.5")
-        return
-    await state.update_data(child_age=age)
-    await state.set_state(OnboardStates.AskChildSex)
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Boy", callback_data="sex:m"),
-             InlineKeyboardButton(text="Girl", callback_data="sex:f"),
-             InlineKeyboardButton(text="N/A", callback_data="sex:na")]
-        ]
-    )
-    await message.reply("Select your child's sex:", reply_markup=kb)
-
-@router_onboarding.callback_query(F.data.startswith("sex:"), OnboardStates.AskChildSex)
-async def ask_add_another_child(cb: CallbackQuery, state: FSMContext):
-    sex = cb.data.split(":", 1)[1]
-    data = await state.get_data()
-    child = Child(
-        name=data["child_name"],
-        age_years=data["child_age"],
-        sex=sex
-    )
-    children: List[Child] = data.get("children", [])
-    children.append(child)
-    await state.update_data(children=children)
-    await state.set_state(OnboardStates.AskAddAnotherChild)
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Add another child", callback_data="add_child:yes")],
-            [InlineKeyboardButton(text="Continue", callback_data="add_child:no")]
-        ]
-    )
-    await cb.message.edit_text(
-        f"Added {child.name} ({child.age_years}y, {SEX_LABELS[sex]}).\n\nAdd another child?",
-        reply_markup=kb
-    )
-    await cb.answer()
-
-@router_onboarding.callback_query(F.data.startswith("add_child:"), OnboardStates.AskAddAnotherChild)
-async def add_another_child(cb: CallbackQuery, state: FSMContext):
-    if cb.data.endswith(":yes"):
-        await state.set_state(OnboardStates.AskChildName)
-        await cb.message.edit_text("What's your next child's first name?")
-    else:
-        await state.set_state(OnboardStates.AskHealthNotes)
-        await cb.message.edit_text("Any health notes? (optional, or skip)")
-    await cb.answer()
-
-@router_onboarding.message(OnboardStates.AskHealthNotes)
-async def ask_lifestyle_tags(message: Message, state: FSMContext):
-    notes = message.text.strip()
-    await state.update_data(health_notes=notes)
-    await state.set_state(OnboardStates.AskLifestyleTags)
-    await message.reply("Any lifestyle tags? (comma-separated, e.g. vegetarian, outdoor_activities)\nOr skip.")
-
-@router_onboarding.message(OnboardStates.AskLifestyleTags)
-async def confirm(message: Message, state: FSMContext):
-    text = message.text.strip().lower()
-    
-    # Handle different input formats
-    if text in ["skip", "none", "no", ""]:
-        tags = []
-    elif "," in text:
-        # Comma-separated tags
-        tags = [t.strip() for t in text.split(",") if t.strip()]
-    else:
-        # Single tag
-        tags = [text] if text else []
-    
-    await state.update_data(lifestyle_tags=tags)
-    await state.set_state(OnboardStates.Confirm)
-    data = await state.get_data()
-    
-    # Enhanced summary with lifestyle tags
-    summary = f"Profile summary:\n\n👤 {data.get('parent_name','')}\nTimezone: {data.get('timezone','UTC')}\nChildren: {', '.join([c.name for c in data.get('children',[])])}"
-    if tags:
-        summary += f"\nLifestyle: {', '.join(tags)}"
-    
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[
-            InlineKeyboardButton(text="Finish & Open Dyads", callback_data="confirm:yes")
-        ]]
-    )
-    await message.reply(summary, reply_markup=kb)
-
-@router_onboarding.callback_query(F.data=="confirm:yes")
-async def finish(cb: CallbackQuery, state: FSMContext):
-    logger.info(f"Finish callback triggered for chat {cb.message.chat.id}")
-    try:
-        data = await state.get_data()
-        chat_id = cb.message.chat.id
-        logger.info(f"State data: {data}")
+        family_id = f"fam_{message.chat.id}"
         
-        if not data.get("children"):
-            await cb.message.edit_text("You must add at least one child.")
-            await state.set_state(OnboardStates.AskChildName)
-            return
+        await state.set_state(Onboarding.waiting_for_consent)
         
-        # Create or get profile first, then update fields
-        logger.info(f"Creating/getting profile for chat {chat_id}")
-        try:
-            # Use a simpler approach - just create the family_id directly
-            family_id = f"fam_{chat_id}"
-            logger.info(f"Using family_id: {family_id}")
-            
-            # Check if profile already exists
-            existing_profile = await profiles.get_profile_by_chat(chat_id)
-            if existing_profile:
-                logger.info(f"Profile already exists: {existing_profile.family_id}")
-            else:
-                logger.info("Profile doesn't exist, will create during upsert")
-        except Exception as e:
-            logger.error(f"Error creating profile: {e}")
-            await cb.answer(f"Error creating profile: {str(e)}", show_alert=True)
-            return
-        
-        try:
-            # First, ensure the profile exists
-            if not existing_profile:
-                logger.info(f"Creating profile for {family_id}")
-                # Create a minimal profile manually
-                minimal_profile = profiles._create_minimal_profile(chat_id)
-                # Add it to the index manually
-                profiles._index[family_id] = minimal_profile
-                profiles._save_index()
-                logger.info(f"Minimal profile created manually: {minimal_profile.family_id}")
-            
-            # Now update the fields
-            await profiles.upsert_fields(
-                family_id,
-                parent_name=data.get("parent_name",""),
-                parent_age=data.get("parent_age"),
-                timezone=data.get("timezone","UTC"),
-                children=data.get("children",[]),
-                health_notes=data.get("health_notes",""),
-                lifestyle_tags=data.get("lifestyle_tags",[])
-            )
-            logger.info(f"Profile fields updated for {family_id}")
-        except Exception as e:
-            logger.error(f"Error updating profile fields: {e}")
-            await cb.answer(f"Error updating profile: {str(e)}", show_alert=True)
-            return
-        
-        await profiles.mark_complete(family_id, True)
-        logger.info(f"Profile marked complete for {family_id}")
-        
-        await state.clear()
-        await cb.message.edit_text(
-            "Profile saved. You can now use Silli's helpers.",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[[InlineKeyboardButton(text="Open Dyads", callback_data="open_dyads")]]
-            )
+        consent_text = (
+            "👋 Welcome. Silli ME helps parents take better care of their children.\n\n"
+            "To proceed, please review and accept our [Privacy Policy](https://gist.github.com/example-privacy).\n\n"
+            "🛡️ Silli only processes derived data — never raw audio or video.\n\n"
+            "Do you accept?"
         )
-        await cb.answer()
-        logger.info(f"Onboarding completed successfully for {family_id}")
+        
+        await message.answer(
+            consent_text,
+            reply_markup=consent_buttons(),
+            parse_mode="Markdown"
+        )
+        
+        # Log onboarding start event
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_onboarding_start_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="onboarding",
+            actor="parent",
+            event="onboarding_start",
+            labels=["silli_introduced"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Onboarding started for family {family_id}")
         
     except Exception as e:
-        logger.error(f"Error in finish callback: {e}")
-        await cb.answer(f"Error: {str(e)}", show_alert=True)
+        logger.error(f"Error in start handler: {e}")
+        await message.reply("Sorry, something went wrong. Please try again.")
 
-@router_onboarding.callback_query(F.data=="open_dyads")
-async def open_dyads(cb: CallbackQuery, state: FSMContext):
-    await cb.message.edit_text("Use /dyads to open the helpers.")
-    await cb.answer()
+# ========== CONSENT CALLBACKS ==========
+@router_onboarding.callback_query(F.data == "decline_consent")
+async def handle_decline(callback: CallbackQuery, state: FSMContext):
+    """Handle consent decline."""
+    try:
+        family_id = f"fam_{callback.message.chat.id}"
+        
+        await callback.message.edit_text(
+            "Understood. You can return anytime to continue. Type /start to begin again."
+        )
+        await state.clear()
+        
+        # Log consent declined event
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_consent_declined_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="consent",
+            actor="parent",
+            event="consent_declined",
+            labels=["consent_declined"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Consent declined for family {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in decline consent: {e}")
+        await callback.answer("Error occurred", show_alert=True)
 
-# Debug handler to catch any unhandled callback queries (only for onboarding-specific callbacks)
-@router_onboarding.callback_query(lambda cb: cb.data.startswith(("confirm:", "open_dyads", "tz:", "sex:", "add_child:")))
-async def debug_callback(cb: CallbackQuery, state: FSMContext):
+@router_onboarding.callback_query(F.data == "accept_consent")
+async def handle_accept(callback: CallbackQuery, state: FSMContext):
+    """Handle consent acceptance."""
+    try:
+        family_id = f"fam_{callback.message.chat.id}"
+        
+        await state.set_state(Onboarding.waiting_for_family_choice)
+        
+        welcome_text = (
+            "✅ You're in. Welcome to Silli.\n\n"
+            "Let's create your Family Profile.\n\n"
+            "If you're joining an existing family, just send your Silli Family ID now.\n"
+            "Otherwise, tap below to start fresh."
+        )
+        
+        await callback.message.edit_text(
+            welcome_text,
+            reply_markup=family_choice_buttons()
+        )
+        
+        # Log consent accepted event
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_consent_accepted_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="consent",
+            actor="parent",
+            event="consent_accepted",
+            labels=["consent_granted"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Consent accepted for family {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in accept consent: {e}")
+        await callback.answer("Error occurred", show_alert=True)
+
+# ========== NEW FAMILY FLOW ==========
+@router_onboarding.callback_query(F.data == "create_family")
+async def ask_family_name(callback: CallbackQuery, state: FSMContext):
+    """Ask for new family name."""
+    try:
+        await state.set_state(Onboarding.waiting_for_new_family_name)
+        await callback.message.edit_text(
+            "What would you like to call your Family Profile? (e.g., 'Barakat Home')"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in create family: {e}")
+        await callback.answer("Error occurred", show_alert=True)
+
+@router_onboarding.message(Onboarding.waiting_for_new_family_name)
+async def save_family_name(message: Message, state: FSMContext):
+    """Save family name and proceed to verification."""
+    try:
+        family_id = f"fam_{message.chat.id}"
+        family_name = message.text.strip()
+        
+        if not family_name or len(family_name) < 2:
+            await message.reply("Please enter a valid family name (at least 2 characters).")
+            return
+        
+        await state.update_data(family_name=family_name)
+        await state.set_state(Onboarding.verifying_2fa)
+        
+        # Create basic profile
+        profile_data = {
+            "family_id": family_id,
+            "family_name": family_name,
+            "parent_name": None,
+            "parent_age": None,
+            "timezone": "UTC",
+            "children": [],
+            "health_notes": "",
+            "lifestyle_tags": [],
+            "complete": False,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        profiles.upsert_profile(profile_data)
+        
+        await message.answer(
+            f"Great. We've created your Family Profile: \"{family_name}\".\n\n"
+            "Now verifying your phone number…"
+        )
+        
+        # Simulate phone verification (placeholder)
+        await asyncio.sleep(2)
+        
+        # Mark profile as complete
+        profiles.upsert_fields(family_id, {"complete": True})
+        
+        await message.answer(
+            f"✅ Done. You're now the first member of \"{family_name}\".\n\n"
+            "You can now:\n"
+            "• Summon a helper (/summon_helper)\n"
+            "• Send a voice note (/analyze)\n"
+            "• Review sessions (/list)"
+        )
+        
+        await state.clear()
+        
+        # Log family creation event
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_family_created_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="onboarding",
+            actor="parent",
+            event="family_created",
+            labels=["new_family", "profile_complete"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Family created: {family_name} for {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in save family name: {e}")
+        await message.reply("Sorry, something went wrong. Please try again.")
+
+# ========== EXISTING FAMILY FLOW ==========
+@router_onboarding.message(Onboarding.waiting_for_family_choice)
+async def receive_family_id(message: Message, state: FSMContext):
+    """Handle existing family ID input."""
+    try:
+        family_id = f"fam_{message.chat.id}"
+        input_family_id = message.text.strip()
+        
+        # Basic validation (placeholder - should validate against existing families)
+        if not input_family_id or len(input_family_id) < 3:
+            await message.reply("Please enter a valid Family ID.")
+            return
+        
+        await state.set_state(Onboarding.verifying_2fa)
+        
+        await message.answer(
+            f"Trying to join Family ID: {input_family_id}.\n"
+            "Verifying your phone number…"
+        )
+        
+        # Simulate phone verification (placeholder)
+        await asyncio.sleep(2)
+        
+        # For now, just create a basic profile (in real implementation, would link to existing)
+        profile_data = {
+            "family_id": family_id,
+            "family_name": f"Family {input_family_id}",
+            "parent_name": None,
+            "parent_age": None,
+            "timezone": "UTC",
+            "children": [],
+            "health_notes": "",
+            "lifestyle_tags": [],
+            "complete": True,
+            "created_at": datetime.now().isoformat()
+        }
+        
+        profiles.upsert_profile(profile_data)
+        
+        await message.answer(
+            f"✅ You're now linked to \"{input_family_id}\".\n\n"
+            "You can now:\n"
+            "• Summon a helper (/summon_helper)\n"
+            "• Send a voice note (/analyze)\n"
+            "• Review sessions (/list)"
+        )
+        
+        await state.clear()
+        
+        # Log family join event
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_family_joined_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="onboarding",
+            actor="parent",
+            event="family_joined",
+            labels=["existing_family", "profile_complete"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Family joined: {input_family_id} by {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in receive family id: {e}")
+        await message.reply("Sorry, something went wrong. Please try again.")
+
+# ========== PROTECT FEATURES ==========
+@router_onboarding.message()
+async def protect_features(message: Message, state: FSMContext):
+    """Protect features for users who haven't completed onboarding."""
     current_state = await state.get_state()
-    logger.warning(f"Unhandled onboarding callback query: {cb.data} from chat {cb.message.chat.id}, current state: {current_state}")
-    await cb.answer(f"Debug: Received callback '{cb.data}' in state '{current_state}'", show_alert=True)
+    if current_state and current_state.startswith("Onboarding"):
+        await message.reply("🔐 Please finish onboarding first. Type /start to begin.")
+    else:
+        await message.reply("Unrecognized command. Type /help for options.")
 
+# ========== CANCEL ONBOARDING ==========
 @router_onboarding.message(Command("cancel"))
 async def cancel_onboarding(message: Message, state: FSMContext):
-    await state.clear()
-    await message.reply("Onboarding cancelled.")
+    """Cancel onboarding process."""
+    try:
+        family_id = f"fam_{message.chat.id}"
+        
+        await state.clear()
+        await message.reply(
+            "Onboarding cancelled. Type /start to begin again."
+        )
+        
+        # Log cancellation event
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_onboarding_cancelled_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="onboarding",
+            actor="parent",
+            event="onboarding_cancelled",
+            labels=["cancelled"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Onboarding cancelled for family {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in cancel onboarding: {e}")
+        await message.reply("Sorry, something went wrong. Please try again.")

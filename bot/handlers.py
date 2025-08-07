@@ -156,122 +156,31 @@ storage = Storage()
 families = FamiliesStore()
 
 
-@router.message(Command("start"))
-async def start_command(message: Message):
-    """Handle /start command - consent and assign family_id."""
-    try:
-        # Generate family_id from chat_id
-        family_id = f"fam_{message.chat.id}"
-        families.add(int(message.chat.id))
-        
-        # New Silli persona onboarding
-        onboarding_text = (
-            "👋\n"
-            "I'm Silli.\n"
-            "I listen. I help. I stay quiet when needed.\n\n"
-            "You can send me a **voice note** or just **type** when something's hard.\n\n"
-            "Right now, I can summon 3 helpers for you:\n\n"
-            "• 🛏 Night Helper – bedtime calming\n"
-            "• 🧹 Tantrum Translator – meltdown decoding\n"
-            "• 🍽 Meal Mood Companion – help with meals\n\n"
-            "Just tell me what's going on, or tap a helper below:\n\n"
-            "🛏 Night Helper\n"
-            "🧹 Tantrum Translator\n"
-            "🍽 Meal Mood Companion"
-        )
-        
-        await message.reply(onboarding_text, reply_markup=_dyad_kb())
-        
-        # Log onboarding event
-        event = EventRecord(
-            ts=datetime.now(),
-            family_id=family_id,
-            session_id=f"{family_id}_onboarding_{datetime.now().strftime('%Y%m%d_%H%M')}",
-            phase="onboarding",
-            actor="parent",
-            event="onboarding",
-            labels=["silli_introduced"]
-        )
-        storage.append_event(event)
-        
-        logger.info(f"Silli onboarding for family {family_id}")
-        
-    except Exception as e:
-        logger.error(f"Error in start command: {e}")
-        await message.reply("Sorry, something went wrong. Please try again.")
-
-
-@router.message(Command("yes"))
-async def consent_yes_command(message: Message):
-    """Handle /yes command - confirm consent."""
+# ========== HELPER FUNCTIONS ==========
+async def check_onboarding_complete(message: Message) -> bool:
+    """Check if user has completed onboarding."""
     try:
         family_id = f"fam_{message.chat.id}"
+        profile = await profiles.get_profile_by_chat(message.chat.id)
         
-        consent_text = (
-            "✅ Consent confirmed.\n\n"
-            "You can now:\n"
-            "• Run /summon_helper to open the Parent Night Helper\n"
-            "• Send a voice note for quick check (/analyze)\n"
-            "• View your recent sessions (/list)"
-        )
-        
-        await message.reply(consent_text)
-        
-        # Log consent confirmed event
-        event = EventRecord(
-            ts=datetime.now(),
-            family_id=family_id,
-            session_id=f"{family_id}_consent_confirmed_{datetime.now().strftime('%Y%m%d_%H%M')}",
-            phase="consent",
-            actor="parent",
-            event="consent_confirmed",
-            labels=["consent_granted"]
-        )
-        storage.append_event(event)
-        
-        logger.info(f"Consent confirmed for family {family_id}")
-        
+        if not profile or not profile.get("complete", False):
+            await message.reply(
+                "🔐 Please complete onboarding first. Type /start to begin."
+            )
+            return False
+        return True
     except Exception as e:
-        logger.error(f"Error in consent_yes command: {e}")
-        await message.reply("Sorry, something went wrong. Please try again.")
+        logger.error(f"Error checking onboarding status: {e}")
+        await message.reply("Error checking status. Please try /start again.")
+        return False
 
-
-@router.message(Command("no"))
-async def consent_no_command(message: Message):
-    """Handle /no command - decline consent."""
-    try:
-        family_id = f"fam_{message.chat.id}"
-        
-        decline_text = (
-            "❌ Consent declined.\n\n"
-            "Silli ME will not process any audio data.\n"
-            "You can restart anytime with /start."
-        )
-        
-        await message.reply(decline_text)
-        
-        # Log consent declined event
-        event = EventRecord(
-            ts=datetime.now(),
-            family_id=family_id,
-            session_id=f"{family_id}_consent_declined_{datetime.now().strftime('%Y%m%d_%H%M')}",
-            phase="consent",
-            actor="parent",
-            event="consent_declined",
-            labels=["consent_declined"]
-        )
-        storage.append_event(event)
-        
-        logger.info(f"Consent declined for family {family_id}")
-        
-    except Exception as e:
-        logger.error(f"Error in consent_no command: {e}")
-        await message.reply("Sorry, something went wrong. Please try again.")
-
-
+# ========== COMMAND HANDLERS ==========
 @router.message(Command("night_helper"))
 async def night_helper_command(message: Message):
     """Handle night helper summoning."""
+    if not await check_onboarding_complete(message):
+        return
+        
     try:
         family_id = f"fam_{message.chat.id}"
         
@@ -289,18 +198,18 @@ async def night_helper_command(message: Message):
         event = EventRecord(
             ts=datetime.now(),
             family_id=family_id,
-            session_id=f"{family_id}_night_helper_{datetime.now().strftime('%Y%m%d_%H%M')}",
-            phase="dyad_summon",
+            session_id=f"{family_id}_night_helper_summoned_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="helper",
             actor="parent",
             event="night_helper_summoned",
-            labels=["bedtime", "wind_down"]
+            labels=["night_helper"]
         )
         storage.append_event(event)
         
         logger.info(f"Night helper summoned for family {family_id}")
         
     except Exception as e:
-        logger.error(f"Error in night_helper command: {e}")
+        logger.error(f"Error in night helper command: {e}")
         await message.reply("Sorry, something went wrong. Please try again.")
 
 
@@ -442,24 +351,32 @@ async def choose_dyad_cb(q: CallbackQuery):
 
 @router.message(Command("dyads"))
 async def dyads_command(message: Message):
-    """Handle /dyads command - show Dyad selection."""
+    """Handle /dyads command - show available helpers."""
+    if not await check_onboarding_complete(message):
+        return
+        
     try:
-        families.add(int(message.chat.id))
-        await message.reply(
-            "Choose a helper:",
-            reply_markup=_dyad_kb()
+        family_id = f"fam_{message.chat.id}"
+        
+        dyads_text = (
+            "Here are your Silli helpers:\n\n"
+            "🛏 **Night Helper** – Calm bedtime routines\n"
+            "🧹 **Tantrum Translator** – Decode meltdowns\n"
+            "🍽 **Meal Mood Companion** – Better mealtimes\n\n"
+            "Tap a helper to get started:"
         )
         
-        # Log dyads command
-        family_id = f"fam_{message.chat.id}"
+        await message.reply(dyads_text, reply_markup=_dyad_kb())
+        
+        # Log dyads command event
         event = EventRecord(
             ts=datetime.now(),
             family_id=family_id,
-            session_id=f"{family_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            phase="dyad_selection",
+            session_id=f"{family_id}_dyads_command_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="helper",
             actor="parent",
             event="dyads_command",
-            labels=["dyad_selection"]
+            labels=["dyads_listed"]
         )
         storage.append_event(event)
         
@@ -524,44 +441,87 @@ async def health_cmd(message: Message):
 
 @router.message(Command("summon_helper"))
 async def summon_helper_command(message: Message):
+    """Handle /summon_helper command - open night helper."""
+    if not await check_onboarding_complete(message):
+        return
+        
     try:
-        families.add(int(message.chat.id))
-        # Log profile completeness for debugging
-        from bot.profiles import profiles
-        profile = await profiles.get_profile_by_chat(message.chat.id)
-        logger.info(f"/summon_helper: profile_complete={getattr(profile, 'complete', None)} for chat_id={message.chat.id}")
-        await message.reply(
-            "Choose a helper:",
-            reply_markup=_dyad_kb()
-        )
-        # Log summon event
         family_id = f"fam_{message.chat.id}"
+        
+        # Generate PWA link for night helper
+        session_id = f"{family_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        token = generate_session_token(family_id, session_id)
+        
+        pwa_url = f"https://{PWA_HOST}/silli-meter?mode=helper&family={family_id}&session={session_id}&dyad=night&tok={token}"
+        
+        response_text = (
+            "🛏 **Parent Night Helper**\n\n"
+            "I'll listen to the room and help you create a calm bedtime environment.\n\n"
+            "• No audio is uploaded\n"
+            "• Analysis happens on your device\n"
+            "• Get personalized tips for better sleep\n\n"
+            f"🔗 [Open Night Helper]({pwa_url})"
+        )
+        
+        await message.reply(response_text, parse_mode="Markdown")
+        
+        # Log helper summon event
         event = EventRecord(
             ts=datetime.now(),
             family_id=family_id,
-            session_id=f"{family_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            phase="dyad_selection",
+            session_id=session_id,
+            phase="helper",
             actor="parent",
-            event="summon_helper",
-            labels=["dyad_selection"]
+            event="night_helper_summoned",
+            labels=["night_helper", "pwa_opened"]
         )
         storage.append_event(event)
-        logger.info(f"Dyad selection requested for family {family_id}")
+        
+        logger.info(f"Night helper summoned for family {family_id}")
+        
     except Exception as e:
-        logger.error(f"Error in summon_helper command: {e}")
+        logger.error(f"Error in summon helper command: {e}")
         await message.reply("Sorry, something went wrong. Please try again.")
 
 
 @router.message(Command("analyze"))
 async def analyze_command(message: Message):
-    """Handle /analyze command - instructions for voice note."""
-    instructions = (
-        "Send a short voice note (5–10 sec) from the room.\n"
-        "Silli will give you a quick score + tips.\n"
-        "No audio is stored."
-    )
-    
-    await message.reply(instructions)
+    """Handle /analyze command - quick voice analysis."""
+    if not await check_onboarding_complete(message):
+        return
+        
+    try:
+        family_id = f"fam_{message.chat.id}"
+        
+        analyze_text = (
+            "🎤 **Quick Voice Analysis**\n\n"
+            "Send me a voice note and I'll analyze it for you.\n\n"
+            "I can help with:\n"
+            "• Tantrum triggers and patterns\n"
+            "• Sleep environment assessment\n"
+            "• Meal time stress indicators\n\n"
+            "Just record and send!"
+        )
+        
+        await message.reply(analyze_text)
+        
+        # Log analyze command event
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_analyze_command_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="analysis",
+            actor="parent",
+            event="analyze_command",
+            labels=["voice_analysis"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Analyze command requested for family {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in analyze command: {e}")
+        await message.reply("Sorry, something went wrong. Please try again.")
 
 
 @router.message(Command("privacy_offline"))

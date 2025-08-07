@@ -70,13 +70,12 @@ def check_dependencies():
 
 async def set_commands(bot):
     commands = [
-        types.BotCommand(command="start", description="Begin and consent to the privacy notice"),
+        types.BotCommand(command="start", description="Begin onboarding and consent to privacy notice"),
         types.BotCommand(command="help", description="See all available commands"),
-        types.BotCommand(command="onboard", description="Set up your Family Profile"),
+        types.BotCommand(command="dyads", description="Show all available helpers"),
         types.BotCommand(command="summon_helper", description="Open the Parent Night Helper (PWA)"),
-        types.BotCommand(command="analyze", description="Send a voice note for Wind-Down analysis"),
+        types.BotCommand(command="analyze", description="Send a voice note for quick analysis"),
         types.BotCommand(command="insights", description="View AI-aided insights from your sessions"),
-        types.BotCommand(command="dyads", description="Show all helpers (Dyads)"),
         types.BotCommand(command="privacy_offline", description="Stop proactive messages (reply-only mode)"),
         types.BotCommand(command="export", description="Download your derived event log (JSONL)"),
         types.BotCommand(command="ingest", description="Upload a PWA session JSON report"),

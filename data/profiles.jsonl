@@ -7,3 +7,6 @@
 {"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"complete": true}, "ts": "2025-08-06T16:28:26.017529"}
 {"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"parent_name": "Rodrigo", "parent_age": 35, "timezone": "America/Sao_Paulo", "children": [{"name": "Amelie", "age_years": 8.0, "sex": "f"}], "health_notes": "no", "lifestyle_tags": ["divorced parents"]}, "ts": "2025-08-06T18:07:52.632022"}
 {"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"complete": true}, "ts": "2025-08-06T18:07:52.633767"}
+{"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"cloud_reasoning": true}, "ts": "2025-08-07T12:03:23.910195"}
+{"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"parent_name": "Rodrigo", "parent_age": 35, "timezone": "America/Sao_Paulo", "children": [{"name": "Amelie", "age_years": 8.0, "sex": "f"}], "health_notes": "no", "lifestyle_tags": ["divorced parents"]}, "ts": "2025-08-07T13:01:55.432080"}
+{"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"complete": true}, "ts": "2025-08-07T13:01:55.434212"}
