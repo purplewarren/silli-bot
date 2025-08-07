@@ -1,0 +1,35 @@
+{
+  "ts_start": "2025-08-01T15:30:00.000Z",
+  "duration_s": 600,
+  "mode": "helper",
+  "family_id": "fam_2130406580",
+  "session_id": "fam_2130406580_20250801_153000",
+  "scales": {
+    "short_sec": 10,
+    "mid_sec": 60,
+    "long_sec": 600
+  },
+  "features_summary": {
+    "level_dbfs_p50": -26.4,
+    "level_dbfs_p90": -18.2,
+    "centroid_norm_mean": 0.33,
+    "flux_norm_mean": 0.14,
+    "vad_fraction": 0.21,
+    "stationarity": 0.73
+  },
+  "score": {
+    "short": 64,
+    "mid": 71,
+    "long": 78,
+    "trend": "improving"
+  },
+  "badges": ["Speech present", "Steady"],
+  "events": [
+    {"t": 120, "type": "suggestion", "id": "quiet_minute"},
+    {"t": 125, "type": "apply", "id": "quiet_minute"},
+    {"t": 300, "type": "suggestion", "id": "dim_lights"},
+    {"t": 305, "type": "apply", "id": "dim_lights"}
+  ],
+  "pii": false,
+  "version": "pwa_0.1"
+} 

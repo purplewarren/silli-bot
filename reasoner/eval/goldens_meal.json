@@ -1,0 +1,92 @@
+[
+  {
+    "features": {},
+    "context": {"meal_type": "lunch", "offered": "Pasta with vegetables and chicken", "eaten_pct": 85, "stress_level": 0},
+    "metrics": {"meal_mood": 82},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "dinner", "offered": "Fish, rice, and broccoli", "eaten_pct": 40, "stress_level": 2},
+    "metrics": {"meal_mood": 45},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "breakfast", "offered": "Oatmeal with berries and yogurt", "eaten_pct": 95, "stress_level": 0},
+    "metrics": {"meal_mood": 88},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "snack", "offered": "Apple slices and peanut butter", "eaten_pct": 20, "stress_level": 3},
+    "metrics": {"meal_mood": 25},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "lunch", "offered": "Sandwich and soup", "eaten_pct": 60, "stress_level": 1},
+    "metrics": {"meal_mood": 58},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "dinner", "offered": "Pizza and salad", "eaten_pct": 75, "stress_level": 0},
+    "metrics": {"meal_mood": 72},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "breakfast", "offered": "Cereal and milk", "eaten_pct": 30, "stress_level": 4},
+    "metrics": {"meal_mood": 28},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "snack", "offered": "Carrot sticks and hummus", "eaten_pct": 90, "stress_level": 0},
+    "metrics": {"meal_mood": 85},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "lunch", "offered": "Chicken nuggets and fries", "eaten_pct": 50, "stress_level": 2},
+    "metrics": {"meal_mood": 48},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "dinner", "offered": "Spaghetti and meatballs", "eaten_pct": 80, "stress_level": 1},
+    "metrics": {"meal_mood": 76},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "breakfast", "offered": "Pancakes and syrup", "eaten_pct": 70, "stress_level": 1},
+    "metrics": {"meal_mood": 65},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "snack", "offered": "Crackers and cheese", "eaten_pct": 15, "stress_level": 5},
+    "metrics": {"meal_mood": 12},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "lunch", "offered": "Tuna sandwich and chips", "eaten_pct": 65, "stress_level": 1},
+    "metrics": {"meal_mood": 62},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "dinner", "offered": "Grilled cheese and tomato soup", "eaten_pct": 55, "stress_level": 2},
+    "metrics": {"meal_mood": 52},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {},
+    "context": {"meal_type": "breakfast", "offered": "Toast and eggs", "eaten_pct": 45, "stress_level": 3},
+    "metrics": {"meal_mood": 42},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  }
+] 

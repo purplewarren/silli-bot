@@ -1,0 +1,7 @@
+{
+  "w1_vad": 35,
+  "w2_flux": 20,
+  "w3_centroid": 35,
+  "w4_level": 35,
+  "w5_steady_bonus": 10
+}

@@ -1,0 +1,119 @@
+[
+  {
+    "version": "pwa_0.2",
+    "family_id": "fam_test_123",
+    "session_id": "tantrum_session_001",
+    "mode": "helper",
+    "dyad": "tantrum",
+    "ts_start": "2024-01-15T14:30:00Z",
+    "duration_s": 25,
+    "features_summary": {
+      "vad_fraction": 0.45,
+      "flux_norm": 0.32,
+      "level_dbfs": -28.5
+    },
+    "badges": ["✅ Emotional Mirror"],
+    "context": {
+      "trigger": "transition",
+      "duration_min": 4,
+      "co_regulation": ["mirror", "label"],
+      "environment_noise": true,
+      "notes": "Child upset about leaving playground"
+    },
+    "metrics": {
+      "escalation_index": 0.65
+    },
+    "media_summaries": {
+      "audio": {
+        "rms_p50": 0.45,
+        "vad_fraction": 0.45
+      },
+      "video": {
+        "motion_score_p95": 0.72
+      }
+    },
+    "events": [
+      {"ts": "2024-01-15T14:30:05Z", "type": "recording_start"},
+      {"ts": "2024-01-15T14:30:25Z", "type": "recording_stop"}
+    ],
+    "pii": false
+  },
+  {
+    "version": "pwa_0.2",
+    "family_id": "fam_test_123",
+    "session_id": "tantrum_session_002",
+    "mode": "helper",
+    "dyad": "tantrum",
+    "ts_start": "2024-01-15T16:45:00Z",
+    "duration_s": 18,
+    "features_summary": {
+      "vad_fraction": 0.28,
+      "flux_norm": 0.18,
+      "level_dbfs": -35.2
+    },
+    "badges": ["🧘 Calm Presence"],
+    "context": {
+      "trigger": "frustration",
+      "duration_min": 3,
+      "co_regulation": ["breathe", "safe_space"],
+      "environment_noise": false,
+      "notes": "Trouble with puzzle piece"
+    },
+    "metrics": {
+      "escalation_index": 0.32
+    },
+    "media_summaries": {
+      "audio": {
+        "rms_p50": 0.28,
+        "vad_fraction": 0.28
+      },
+      "video": {
+        "motion_score_p95": 0.45
+      }
+    },
+    "events": [
+      {"ts": "2024-01-15T16:45:02Z", "type": "recording_start"},
+      {"ts": "2024-01-15T16:45:20Z", "type": "recording_stop"}
+    ],
+    "pii": false
+  },
+  {
+    "version": "pwa_0.2",
+    "family_id": "fam_test_123",
+    "session_id": "tantrum_session_003",
+    "mode": "helper",
+    "dyad": "tantrum",
+    "ts_start": "2024-01-15T19:20:00Z",
+    "duration_s": 35,
+    "features_summary": {
+      "vad_fraction": 0.62,
+      "flux_norm": 0.55,
+      "level_dbfs": -22.8
+    },
+    "badges": ["🛡️ Boundary Holder"],
+    "context": {
+      "trigger": "limit",
+      "duration_min": 6,
+      "co_regulation": ["hold", "consistency"],
+      "environment_noise": true,
+      "notes": "Bedtime resistance"
+    },
+    "metrics": {
+      "escalation_index": 0.78
+    },
+    "media_summaries": {
+      "audio": {
+        "rms_p50": 0.62,
+        "vad_fraction": 0.62
+      },
+      "video": {
+        "motion_score_p95": 0.88
+      }
+    },
+    "events": [
+      {"ts": "2024-01-15T19:20:00Z", "type": "recording_start"},
+      {"ts": "2024-01-15T19:20:35Z", "type": "recording_stop"}
+    ],
+    "pii": false
+  }
+] 

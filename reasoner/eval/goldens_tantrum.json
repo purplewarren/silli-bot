@@ -1,0 +1,92 @@
+[
+  {
+    "features": {"vad_fraction": 0.7, "flux_norm": 0.6, "level_dbfs": -25.2},
+    "context": {"trigger": "transition", "duration_min": 4, "co_regulation": ["mirror", "label"]},
+    "metrics": {"escalation_index": 0.65},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.3, "flux_norm": 0.2, "level_dbfs": -35.8},
+    "context": {"trigger": "frustration", "duration_min": 2, "co_regulation": ["breathe", "safe_space"]},
+    "metrics": {"escalation_index": 0.32},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.8, "flux_norm": 0.7, "level_dbfs": -20.1},
+    "context": {"trigger": "limit", "duration_min": 6, "co_regulation": ["hold", "consistency"]},
+    "metrics": {"escalation_index": 0.78},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.4, "flux_norm": 0.3, "level_dbfs": -30.5},
+    "context": {"trigger": "fatigue", "duration_min": 3, "co_regulation": ["rest", "quiet"]},
+    "metrics": {"escalation_index": 0.45},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.6, "flux_norm": 0.5, "level_dbfs": -28.3},
+    "context": {"trigger": "hunger", "duration_min": 5, "co_regulation": ["nourish", "comfort"]},
+    "metrics": {"escalation_index": 0.55},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.2, "flux_norm": 0.1, "level_dbfs": -40.2},
+    "context": {"trigger": "overstimulation", "duration_min": 1, "co_regulation": ["reduce", "calm"]},
+    "metrics": {"escalation_index": 0.18},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.9, "flux_norm": 0.8, "level_dbfs": -15.7},
+    "context": {"trigger": "pain", "duration_min": 8, "co_regulation": ["comfort", "soothe"]},
+    "metrics": {"escalation_index": 0.92},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.5, "flux_norm": 0.4, "level_dbfs": -32.1},
+    "context": {"trigger": "boredom", "duration_min": 3, "co_regulation": ["engage", "distract"]},
+    "metrics": {"escalation_index": 0.48},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.1, "flux_norm": 0.05, "level_dbfs": -45.3},
+    "context": {"trigger": "anxiety", "duration_min": 2, "co_regulation": ["reassure", "hold"]},
+    "metrics": {"escalation_index": 0.12},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.75, "flux_norm": 0.65, "level_dbfs": -22.8},
+    "context": {"trigger": "jealousy", "duration_min": 4, "co_regulation": ["acknowledge", "redirect"]},
+    "metrics": {"escalation_index": 0.72},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.35, "flux_norm": 0.25, "level_dbfs": -33.7},
+    "context": {"trigger": "confusion", "duration_min": 2, "co_regulation": ["explain", "simplify"]},
+    "metrics": {"escalation_index": 0.38},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.85, "flux_norm": 0.75, "level_dbfs": -18.9},
+    "context": {"trigger": "anger", "duration_min": 7, "co_regulation": ["validate", "redirect"]},
+    "metrics": {"escalation_index": 0.88},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.25, "flux_norm": 0.15, "level_dbfs": -38.4},
+    "context": {"trigger": "disappointment", "duration_min": 3, "co_regulation": ["empathize", "comfort"]},
+    "metrics": {"escalation_index": 0.28},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.65, "flux_norm": 0.55, "level_dbfs": -26.2},
+    "context": {"trigger": "excitement", "duration_min": 4, "co_regulation": ["channel", "focus"]},
+    "metrics": {"escalation_index": 0.62},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.15, "flux_norm": 0.08, "level_dbfs": -42.6},
+    "context": {"trigger": "fear", "duration_min": 2, "co_regulation": ["protect", "reassure"]},
+    "metrics": {"escalation_index": 0.15},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  }
+] 

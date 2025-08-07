@@ -1,0 +1,62 @@
+[
+  {
+    "features": {"vad_fraction": 0.2, "flux_norm": 0.1, "level_dbfs": -38.5},
+    "context": {"environment_noise": false, "light_level": "dim", "temperature": "comfortable"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.4, "flux_norm": 0.3, "level_dbfs": -32.1},
+    "context": {"environment_noise": true, "light_level": "bright", "temperature": "warm"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.1, "flux_norm": 0.05, "level_dbfs": -42.3},
+    "context": {"environment_noise": false, "light_level": "dark", "temperature": "cool"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.6, "flux_norm": 0.5, "level_dbfs": -28.7},
+    "context": {"environment_noise": true, "light_level": "medium", "temperature": "hot"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.15, "flux_norm": 0.08, "level_dbfs": -40.1},
+    "context": {"environment_noise": false, "light_level": "dim", "temperature": "cold"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.3, "flux_norm": 0.2, "level_dbfs": -35.2},
+    "context": {"environment_noise": true, "light_level": "bright", "temperature": "comfortable"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.05, "flux_norm": 0.02, "level_dbfs": -45.8},
+    "context": {"environment_noise": false, "light_level": "dark", "temperature": "warm"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.5, "flux_norm": 0.4, "level_dbfs": -30.4},
+    "context": {"environment_noise": true, "light_level": "medium", "temperature": "cool"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.25, "flux_norm": 0.15, "level_dbfs": -36.9},
+    "context": {"environment_noise": false, "light_level": "dim", "temperature": "hot"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  },
+  {
+    "features": {"vad_fraction": 0.35, "flux_norm": 0.25, "level_dbfs": -33.6},
+    "context": {"environment_noise": true, "light_level": "bright", "temperature": "cold"},
+    "metrics": {},
+    "expect": {"max_words_per_tip": 25, "tips_max": 2}
+  }
+] 

@@ -1,0 +1,20 @@
+
+
+name = "silli-auto-ingest-relay"
+main = "worker.js"
+compatibility_date = "2025-08-01"
+
+# Optional: uncomment to force workers.dev deployment explicitly
+# workers_dev = true
+
+# Enable logs for debugging
+[observability.logs]
+enabled = true
+
+[[kv_namespaces]]
+binding = "SILLI_SESSIONS"
+id = "7f63da6c3c824f7594ad1ba22a09afbb"
+
+# Secrets are set via CLI (do not commit):
+#   npx wrangler secret put RELAY_SECRET --config relay/wrangler.toml
+#   npx wrangler secret put BOT_TOKEN    --config relay/wrangler.toml

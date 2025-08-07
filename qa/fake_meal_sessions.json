@@ -1,0 +1,104 @@
+[
+  {
+    "version": "pwa_0.2",
+    "family_id": "fam_test_123",
+    "session_id": "meal_session_001",
+    "mode": "helper",
+    "dyad": "meal",
+    "ts_start": "2024-01-15T12:00:00Z",
+    "duration_s": 0,
+    "features_summary": {},
+    "badges": ["🌈 Diversity Champion"],
+    "context": {
+      "meal_type": "lunch",
+      "offered": "Pasta with vegetables and chicken",
+      "eaten_pct": 85,
+      "stress_level": 0,
+      "environment_noise": false,
+      "notes": "Great appetite today"
+    },
+    "metrics": {
+      "meal_mood": 82
+    },
+    "media_summaries": {
+      "image": {
+        "dietary_diversity": 0.75,
+        "clutter_score": 0.25,
+        "plate_coverage": 0.65
+      }
+    },
+    "events": [
+      {"ts": "2024-01-15T12:00:00Z", "type": "photo_captured"},
+      {"ts": "2024-01-15T12:00:30Z", "type": "analysis_complete"}
+    ],
+    "pii": false
+  },
+  {
+    "version": "pwa_0.2",
+    "family_id": "fam_test_123",
+    "session_id": "meal_session_002",
+    "mode": "helper",
+    "dyad": "meal",
+    "ts_start": "2024-01-15T18:30:00Z",
+    "duration_s": 0,
+    "features_summary": {},
+    "badges": ["⚖️ Portion Perfect"],
+    "context": {
+      "meal_type": "dinner",
+      "offered": "Fish, rice, and broccoli",
+      "eaten_pct": 40,
+      "stress_level": 2,
+      "environment_noise": true,
+      "notes": "Picky about vegetables"
+    },
+    "metrics": {
+      "meal_mood": 45
+    },
+    "media_summaries": {
+      "image": {
+        "dietary_diversity": 0.45,
+        "clutter_score": 0.35,
+        "plate_coverage": 0.55
+      }
+    },
+    "events": [
+      {"ts": "2024-01-15T18:30:00Z", "type": "photo_captured"},
+      {"ts": "2024-01-15T18:30:25Z", "type": "analysis_complete"}
+    ],
+    "pii": false
+  },
+  {
+    "version": "pwa_0.2",
+    "family_id": "fam_test_123",
+    "session_id": "meal_session_003",
+    "mode": "helper",
+    "dyad": "meal",
+    "ts_start": "2024-01-15T08:15:00Z",
+    "duration_s": 0,
+    "features_summary": {},
+    "badges": ["😊 Mood Booster"],
+    "context": {
+      "meal_type": "breakfast",
+      "offered": "Oatmeal with berries and yogurt",
+      "eaten_pct": 95,
+      "stress_level": 0,
+      "environment_noise": false,
+      "notes": "Excited about breakfast"
+    },
+    "metrics": {
+      "meal_mood": 88
+    },
+    "media_summaries": {
+      "image": {
+        "dietary_diversity": 0.68,
+        "clutter_score": 0.22,
+        "plate_coverage": 0.72
+      }
+    },
+    "events": [
+      {"ts": "2024-01-15T08:15:00Z", "type": "photo_captured"},
+      {"ts": "2024-01-15T08:15:20Z", "type": "analysis_complete"}
+    ],
+    "pii": false
+  }
+] 
