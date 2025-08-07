@@ -32,7 +32,7 @@ class Child(BaseModel):
 class FamilyProfile(BaseModel):
     family_id: str  # "fam_<creator_chat_id>"
     creator_chat_id: int
-    members: List[int]  # includes creator
+    members: List[int] = []  # includes creator
     parent_name: str
     parent_age: Optional[int] = None
     timezone: str = "UTC"  # IANA tz
@@ -41,6 +41,8 @@ class FamilyProfile(BaseModel):
     lifestyle_tags: List[str] = []
     cloud_reasoning: bool = False  # Per-family reasoner toggle
     locale: str = "en"  # User language preference
+    status: str = "unlinked"  # "unlinked", "active", "inactive"
+    enabled_dyads: List[str] = []  # List of enabled dyad IDs
     created_at: datetime
     updated_at: datetime
     version: int = 1

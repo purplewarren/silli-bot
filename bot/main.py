@@ -15,8 +15,8 @@ from loguru import logger
 from .handlers import router
 from .puller import start_pull_loop
 from aiogram import types
-from .middlewares import ProfileGateMiddleware
-from bot.profiles import profiles
+from .gate_middleware import GateMiddleware
+from .profiles import profiles
 from .handlers_profile import router_profile
 from .handlers_insights import router_insights
 from .reason_client import create_reasoner_config
@@ -115,11 +115,13 @@ async def main():
         # Create bot and dispatcher
         bot = Bot(token=bot_token)
         dp = Dispatcher()
-        dp.update.middleware(ProfileGateMiddleware(profiles))
+        dp.update.middleware(GateMiddleware())
         
         # Include routers (order matters - more specific routers first)
-        from .onboarding import router_onboarding
+        from .handlers_gate import router_gate
+        from .handlers_onboarding import router_onboarding
         from .handlers_i18n import router_i18n
+        dp.include_router(router_gate)  # Gate callbacks first
         dp.include_router(router_onboarding)  # Include first for state management
         dp.include_router(router_i18n)  # Include i18n router early
         dp.include_router(router_profile)
