@@ -65,7 +65,8 @@ Reasoner base_url: http://localhost:5001
 1. **Open Telegram** and find your bot
 2. **Start the bot**: `/start`
 3. **View helpers**: `/dyads`
-4. **Test reasoner**: `/reason_status`
+4. **Change language**: `/lang pt_br` (for Portuguese)
+5. **Test reasoner**: `/reason_status`
 
 ## System Architecture
 
@@ -98,6 +99,11 @@ Reasoner base_url: http://localhost:5001
 
 ### 🔒 **Privacy**
 - **On-device AI**: All reasoning happens locally
+
+### 🌐 **Multilingual Support**
+- **English**: Default language
+- **Portuguese (Brazil)**: Use `/lang pt_br`
+- **Persistent**: Language preference saved per user
 - **No Cloud Storage**: Your data stays private
 - **Secure Communication**: End-to-end encryption
 

@@ -14,6 +14,7 @@ from aiogram.types import Message, Voice, PhotoSize, Video, InlineKeyboardMarkup
 from aiogram.filters import Command
 from loguru import logger
 from .models import EventRecord, FeatureSummary, PwaSessionReport
+from .i18n import get_locale
 from .storage import Storage
 from .analysis_audio import process_voice_note
 from .wt_utils import (
@@ -24,6 +25,12 @@ from .wt_utils import (
 )
 from .families import FamiliesStore
 from .reason_client import create_reasoner_config, ReasonClient, ReasonerUnavailable, clamp_metric_overrides, truncate_tips
+from .dyad_registry import dyad_registry
+from .utils import convert_pwa_to_bot_format, extract_dyad_label
+from .profiles import profiles
+from .analysis_image import analyze_photo, get_lighting_tip
+from .analysis_video import analyze_video, get_motion_tip
+from .cards import render_summary_card
 
 APP_VERSION = "v0.2.0-beta"
 STARTED_AT = datetime.now()
@@ -37,13 +44,16 @@ LAST_SESSION = {}
 # Store message IDs for voice messages to enable replies
 VOICE_MESSAGE_IDS = {}
 
-def extract_dyad_label(labels: list) -> str:
-    """Extract dyad from labels list"""
-    for label in labels:
-        if label.startswith("dyad:"):
-            return label.split(":", 1)[1]
-    return "night"  # default
+# ========== STORAGE INSTANCE ==========
+storage = Storage()
 
+# ========== CONSTANTS ==========
+PWA_HOST = os.getenv("PWA_HOST", "purplewarren.github.io")
+
+# ========== ROUTER ==========
+router = Router()
+
+# ========== HELPER FUNCTIONS ==========
 def summarize_last_events(family_id: str, limit: int = 5) -> list:
     """
     Return a compact list of recent events for reasoning context
@@ -147,16 +157,6 @@ def redact_pii_context(context: dict) -> dict:
     
     return redacted
 
-from .analysis_image import analyze_photo, get_lighting_tip
-from .analysis_video import analyze_video, get_motion_tip
-from .cards import render_summary_card
-
-router = Router()
-storage = Storage()
-families = FamiliesStore()
-
-
-# ========== HELPER FUNCTIONS ==========
 async def check_onboarding_complete(message: Message) -> bool:
     """Check if user has completed onboarding."""
     try:
@@ -173,6 +173,21 @@ async def check_onboarding_complete(message: Message) -> bool:
         logger.error(f"Error checking onboarding status: {e}")
         await message.reply("Error checking status. Please try /start again.")
         return False
+
+# ========== DYAD INVOCATION SYSTEM ==========
+def create_dyad_invocation_kb(dyad_id: str, language: str = "en") -> InlineKeyboardMarkup:
+    """Create keyboard for Dyad invocation."""
+    dyad = dyad_registry.get_dyad(dyad_id)
+    if not dyad:
+        return InlineKeyboardMarkup(inline_keyboard=[])
+    
+    launch_text = dyad_registry.get_dyad_text(dyad_id, "launch_cta", language)
+    info_text = dyad_registry.get_dyad_text(dyad_id, "more_info_cta", language)
+    
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=launch_text, callback_data=f"dyad_launch:{dyad_id}")],
+        [InlineKeyboardButton(text=info_text, callback_data=f"dyad_info:{dyad_id}")]
+    ])
 
 # ========== COMMAND HANDLERS ==========
 @router.message(Command("night_helper"))
@@ -352,21 +367,19 @@ async def choose_dyad_cb(q: CallbackQuery):
 @router.message(Command("dyads"))
 async def dyads_command(message: Message):
     """Handle /dyads command - show available helpers."""
-    if not await check_onboarding_complete(message):
-        return
-        
     try:
         family_id = f"fam_{message.chat.id}"
         
-        dyads_text = (
-            "Here are your Silli helpers:\n\n"
-            "🛏 **Night Helper** – Calm bedtime routines\n"
-            "🧹 **Tantrum Translator** – Decode meltdowns\n"
-            "🍽 **Meal Mood Companion** – Better mealtimes\n\n"
-            "Tap a helper to get started:"
-        )
+        dyads_text = "Here are your Silli helpers:\n\n"
+        dyads = dyad_registry.get_all_dyads()
         
-        await message.reply(dyads_text, reply_markup=_dyad_kb())
+        for dyad_id, dyad in dyads.items():
+            icon = dyad.get("icon", "🔧")
+            name = dyad.get("name", dyad_id)
+            purpose = dyad.get("purpose", "")
+            dyads_text += f"{icon} **{name}**\n{purpose}\n\n"
+        
+        await message.reply(dyads_text, reply_markup=_dyad_kb(), parse_mode="Markdown")
         
         # Log dyads command event
         event = EventRecord(
@@ -389,24 +402,53 @@ async def dyads_command(message: Message):
 
 @router.message(Command("help"))
 async def help_command(message: Message):
-    help_text = (
-        "✨ Silli AI — Your Parenting Companion\n\n"
-        "**Onboarding & Family:**\n"
-        "• /onboard — set up your Family Profile\n"
-        "• /profile — view your profile\n"
-        "• /invite — invite a family member\n"
-        "• /join <code> — join a family with a code\n\n"
-        "**Helpers (Dyads):**\n"
-        "• /night_helper — bedtime calming\n"
-        "• /tantrum_translator — meltdown decoding\n"
-        "• /meal_mood — feeding support\n\n"
-        "**Quick Actions:**\n"
-        "• /summon_helper — open helper menu\n"
-        "• /analyze — send a voice note for analysis\n"
-        "• /list — view recent sessions\n"
-        "• /export — download your data\n\n"
-        "Type naturally — I'll suggest a helper if I can."
-    )
+    locale = get_locale(message.chat.id)
+    
+    if locale == "pt_br":
+        help_text = (
+            "✨ Silli AI — Seu Companheiro de Paternidade\n\n"
+            "**Começando:**\n"
+            "• /start — iniciar onboarding e consentimento\n"
+            "• /help — mostrar esta mensagem de ajuda\n"
+            "• /lang — alterar idioma (en/pt_br)\n\n"
+            "**Ajudantes (Dyads):**\n"
+            "• /summon_helper — escolher entre todos os ajudantes\n"
+            "• /summon_night_helper — Ajudante Noturno\n"
+            "• /summon_meal_mood — Companheira do Humor na Refeição\n"
+            "• /summon_tantrum_translator — Tradutora de Birras\n\n"
+            "**Ações Rápidas:**\n"
+            "• /analyze — enviar nota de voz para análise\n"
+            "• /list — ver sessões recentes\n"
+            "• /export — baixar seus dados\n"
+            "• /ingest — enviar dados da sessão PWA\n\n"
+            "**Sistema:**\n"
+            "• /version — informações da versão do bot\n"
+            "• /health — verificação de saúde do sistema\n\n"
+            "Digite naturalmente — Vou sugerir um ajudante se puder."
+        )
+    else:
+        help_text = (
+            "✨ Silli AI — Your Parenting Companion\n\n"
+            "**Getting Started:**\n"
+            "• /start — begin onboarding and consent\n"
+            "• /help — show this help message\n"
+            "• /lang — change language (en/pt_br)\n\n"
+            "**Helpers (Dyads):**\n"
+            "• /summon_helper — choose from all helpers\n"
+            "• /summon_night_helper — Parent Night Helper\n"
+            "• /summon_meal_mood — Meal Mood Companion\n"
+            "• /summon_tantrum_translator — Tantrum Translator\n\n"
+            "**Quick Actions:**\n"
+            "• /analyze — send a voice note for analysis\n"
+            "• /list — view recent sessions\n"
+            "• /export — download your data\n"
+            "• /ingest — upload PWA session data\n\n"
+            "**System:**\n"
+            "• /version — bot version info\n"
+            "• /health — system health check\n\n"
+            "Type naturally — I'll suggest a helper if I can."
+        )
+    
     await message.reply(help_text, parse_mode="Markdown")
 
 
@@ -439,48 +481,382 @@ async def health_cmd(message: Message):
     )
 
 
+# ========== IMPORTS ==========
+import asyncio
+import json
+import os
+from datetime import datetime
+from typing import Optional, List
+from aiogram import Router, F
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from loguru import logger
+
+from .models import EventRecord, FeatureSummary, PwaSessionReport
+from .storage import Storage
+from .analysis_audio import process_voice_note
+from .wt_utils import (
+    mint_autoingest_token,
+    build_pwa_deeplink,
+    redact_url_token,
+    get_env,
+)
+from .families import FamiliesStore
+from .reason_client import create_reasoner_config, ReasonClient, ReasonerUnavailable, clamp_metric_overrides, truncate_tips
+from .dyad_registry import dyad_registry
+from .utils import convert_pwa_to_bot_format, extract_dyad_label
+from .profiles import profiles
+from .analysis_image import analyze_photo, get_lighting_tip
+from .analysis_video import analyze_video, get_motion_tip
+from .cards import render_summary_card
+
+APP_VERSION = "v0.2.0-beta"
+STARTED_AT = datetime.now()
+
+# Concurrency control for voice processing
+VOICE_SEM = asyncio.Semaphore(2)
+
+# Simple in-memory tracker for last voice session
+LAST_SESSION = {}
+
+# Store message IDs for voice messages to enable replies
+VOICE_MESSAGE_IDS = {}
+
+# ========== STORAGE INSTANCE ==========
+storage = Storage()
+
+# ========== CONSTANTS ==========
+PWA_HOST = os.getenv("PWA_HOST", "purplewarren.github.io")
+
+# ========== ROUTER ==========
+router = Router()
+
+# ========== HELPER FUNCTIONS ==========
+async def check_onboarding_complete(message: Message) -> bool:
+    """Check if user has completed onboarding."""
+    try:
+        family_id = f"fam_{message.chat.id}"
+        profile = await profiles.get_profile_by_chat(message.chat.id)
+        
+        if not profile or not profile.get("complete", False):
+            await message.reply(
+                "🔐 Please complete onboarding first. Type /start to begin."
+            )
+            return False
+        return True
+    except Exception as e:
+        logger.error(f"Error checking onboarding status: {e}")
+        await message.reply("Error checking status. Please try /start again.")
+        return False
+
+# ========== COMMAND HANDLERS ==========
 @router.message(Command("summon_helper"))
 async def summon_helper_command(message: Message):
-    """Handle /summon_helper command - open night helper."""
+    """Handle /summon_helper command - show Dyad selection."""
     if not await check_onboarding_complete(message):
         return
         
     try:
         family_id = f"fam_{message.chat.id}"
+        locale = get_locale(message.chat.id)
         
-        # Generate PWA link for night helper
-        session_id = f"{family_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        token = generate_session_token(family_id, session_id)
+        # Show available Dyads
+        dyads_text = "Choose your helper:\n\n"
+        dyads = dyad_registry.get_all_dyads()
         
-        pwa_url = f"https://{PWA_HOST}/silli-meter?mode=helper&family={family_id}&session={session_id}&dyad=night&tok={token}"
+        for dyad_id, dyad in dyads.items():
+            icon = dyad.get("icon", "🔧")
+            name = dyad.get("name", dyad_id)
+            purpose = dyad.get("purpose", "")
+            dyads_text += f"{icon} **{name}**\n{purpose}\n\n"
         
-        response_text = (
-            "🛏 **Parent Night Helper**\n\n"
-            "I'll listen to the room and help you create a calm bedtime environment.\n\n"
-            "• No audio is uploaded\n"
-            "• Analysis happens on your device\n"
-            "• Get personalized tips for better sleep\n\n"
-            f"🔗 [Open Night Helper]({pwa_url})"
-        )
+        # Create keyboard with all Dyads
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"{dyad.get('icon', '🔧')} {dyad.get('name', dyad_id)}", 
+                                callback_data=f"dyad_invoke:{dyad_id}")]
+            for dyad_id, dyad in dyads.items()
+        ])
         
-        await message.reply(response_text, parse_mode="Markdown")
+        await message.reply(dyads_text, reply_markup=kb, parse_mode="Markdown")
         
-        # Log helper summon event
+        # Log Dyad selection event
         event = EventRecord(
             ts=datetime.now(),
             family_id=family_id,
-            session_id=session_id,
-            phase="helper",
+            session_id=f"{family_id}_dyad_selection_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="dyad_selection",
             actor="parent",
-            event="night_helper_summoned",
-            labels=["night_helper", "pwa_opened"]
+            event="dyad_selection_shown",
+            labels=["dyad_selection"]
         )
         storage.append_event(event)
         
-        logger.info(f"Night helper summoned for family {family_id}")
+        logger.info(f"Dyad selection shown for family {family_id}")
         
     except Exception as e:
         logger.error(f"Error in summon helper command: {e}")
+        await message.reply("Sorry, something went wrong. Please try again.")
+
+@router.callback_query(F.data.startswith("dyad_invoke:"))
+async def handle_dyad_invocation(callback: CallbackQuery):
+    """Handle Dyad invocation - show ritualized introduction."""
+    try:
+        dyad_id = callback.data.split(":", 1)[1]
+        family_id = f"fam_{callback.message.chat.id}"
+        locale = get_locale(callback.message.chat.id)
+        
+        # Get Dyad metadata
+        dyad = dyad_registry.get_dyad(dyad_id)
+        if not dyad:
+            await callback.answer("Dyad not found", show_alert=True)
+            return
+        
+        # Get invocation text in user's locale
+        invocation_text = dyad_registry.get_dyad_text(dyad_id, "invocation_text", locale)
+        
+        # Create invocation keyboard
+        kb = create_dyad_invocation_kb(dyad_id, locale)
+        
+        await callback.message.edit_text(
+            invocation_text,
+            reply_markup=kb,
+            parse_mode="Markdown"
+        )
+        
+        # Log Dyad invocation event
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_dyad_invoked_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="dyad_invocation",
+            actor="parent",
+            event="dyad_invoked",
+            labels=[dyad_id, "invoked"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Dyad invoked: {dyad_id} for {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in Dyad invocation: {e}")
+        await callback.answer("Error occurred", show_alert=True)
+
+@router.callback_query(F.data.startswith("dyad_launch:"))
+async def handle_dyad_launch(callback: CallbackQuery):
+    """Handle Dyad launch - generate PWA URL and launch."""
+    try:
+        dyad_id = callback.data.split(":", 1)[1]
+        family_id = f"fam_{callback.message.chat.id}"
+        
+        # Get Dyad metadata
+        dyad = dyad_registry.get_dyad(dyad_id)
+        if not dyad:
+            await callback.answer("Dyad not found", show_alert=True)
+            return
+        
+        # Create Dyad URL
+        dyad_url = dyad_registry.create_dyad_url(family_id, dyad_id, "en")
+        
+        # Get launch text
+        launch_text = dyad_registry.get_dyad_text(dyad_id, "launch_cta", "en")
+        
+        # Create launch message
+        launch_message = (
+            f"{dyad.get('icon', '🔧')} **{dyad.get('name', dyad_id)}**\n\n"
+            f"{dyad.get('purpose', '')}\n\n"
+            f"🔗 [{launch_text}]({dyad_url})\n\n"
+            f"*{dyad_registry.get_dyad_text(dyad_id, 'privacy_text', 'en')}*"
+        )
+        
+        await callback.message.edit_text(
+            launch_message,
+            parse_mode="Markdown"
+        )
+        
+        # Log Dyad launch
+        session_id = f"{family_id}_{dyad_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        dyad_registry.log_dyad_launch(family_id, dyad_id, session_id)
+        
+        logger.info(f"Dyad launched: {dyad_id} for {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in Dyad launch: {e}")
+        await callback.answer("Error occurred", show_alert=True)
+
+@router.callback_query(F.data.startswith("dyad_info:"))
+async def handle_dyad_info(callback: CallbackQuery):
+    """Handle Dyad info - show detailed information."""
+    try:
+        dyad_id = callback.data.split(":", 1)[1]
+        family_id = f"fam_{callback.message.chat.id}"
+        
+        # Get Dyad metadata
+        dyad = dyad_registry.get_dyad(dyad_id)
+        if not dyad:
+            await callback.answer("Dyad not found", show_alert=True)
+            return
+        
+        # Create info message
+        info_message = (
+            f"{dyad.get('icon', '🔧')} **{dyad.get('name', dyad_id)}**\n\n"
+            f"**Purpose:** {dyad.get('purpose', '')}\n"
+            f"**Tone:** {dyad.get('tone', '')}\n\n"
+            f"**Privacy:** {dyad_registry.get_dyad_text(dyad_id, 'privacy_text', 'en')}\n\n"
+            f"*This Dyad processes only derived signals from your device. No raw audio is ever uploaded.*"
+        )
+        
+        # Create back button
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="← Back to Launch", callback_data=f"dyad_invoke:{dyad_id}")]
+        ])
+        
+        await callback.message.edit_text(
+            info_message,
+            reply_markup=kb,
+            parse_mode="Markdown"
+        )
+        
+        # Log Dyad info view
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_dyad_info_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="dyad_info",
+            actor="parent",
+            event="dyad_info_viewed",
+            labels=[dyad_id, "info_viewed"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Dyad info viewed: {dyad_id} for {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in Dyad info: {e}")
+        await callback.answer("Error occurred", show_alert=True)
+
+# ========== DYAD-SPECIFIC COMMANDS ==========
+@router.message(Command("summon_night_helper"))
+async def summon_night_helper_command(message: Message):
+    """Handle /summon_night_helper command - direct night helper invocation."""
+    if not await check_onboarding_complete(message):
+        return
+    
+    try:
+        family_id = f"fam_{message.chat.id}"
+        dyad_id = "night_helper"
+        locale = get_locale(message.chat.id)
+        
+        # Get invocation text in user's locale
+        invocation_text = dyad_registry.get_dyad_text(dyad_id, "invocation_text", locale)
+        
+        # Create invocation keyboard
+        kb = create_dyad_invocation_kb(dyad_id, locale)
+        
+        await message.reply(
+            invocation_text,
+            reply_markup=kb,
+            parse_mode="Markdown"
+        )
+        
+        # Log direct invocation
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_direct_invocation_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="dyad_invocation",
+            actor="parent",
+            event="direct_dyad_invoked",
+            labels=[dyad_id, "direct_invoked"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Direct Dyad invocation: {dyad_id} for {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in direct Dyad invocation: {e}")
+        await message.reply("Sorry, something went wrong. Please try again.")
+
+@router.message(Command("summon_meal_mood"))
+async def summon_meal_mood_command(message: Message):
+    """Handle /summon_meal_mood command - direct meal mood invocation."""
+    if not await check_onboarding_complete(message):
+        return
+    
+    try:
+        family_id = f"fam_{message.chat.id}"
+        dyad_id = "meal_mood"
+        locale = get_locale(message.chat.id)
+        
+        # Get invocation text in user's locale
+        invocation_text = dyad_registry.get_dyad_text(dyad_id, "invocation_text", locale)
+        
+        # Create invocation keyboard
+        kb = create_dyad_invocation_kb(dyad_id, locale)
+        
+        await message.reply(
+            invocation_text,
+            reply_markup=kb,
+            parse_mode="Markdown"
+        )
+        
+        # Log direct invocation
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_direct_invocation_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="dyad_invocation",
+            actor="parent",
+            event="direct_dyad_invoked",
+            labels=[dyad_id, "direct_invoked"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Direct Dyad invocation: {dyad_id} for {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in direct Dyad invocation: {e}")
+        await message.reply("Sorry, something went wrong. Please try again.")
+
+@router.message(Command("summon_tantrum_translator"))
+async def summon_tantrum_translator_command(message: Message):
+    """Handle /summon_tantrum_translator command - direct tantrum translator invocation."""
+    if not await check_onboarding_complete(message):
+        return
+    
+    try:
+        family_id = f"fam_{message.chat.id}"
+        dyad_id = "tantrum_translator"
+        locale = get_locale(message.chat.id)
+        
+        # Get invocation text in user's locale
+        invocation_text = dyad_registry.get_dyad_text(dyad_id, "invocation_text", locale)
+        
+        # Create invocation keyboard
+        kb = create_dyad_invocation_kb(dyad_id, locale)
+        
+        await message.reply(
+            invocation_text,
+            reply_markup=kb,
+            parse_mode="Markdown"
+        )
+        
+        # Log direct invocation
+        event = EventRecord(
+            ts=datetime.now(),
+            family_id=family_id,
+            session_id=f"{family_id}_direct_invocation_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            phase="dyad_invocation",
+            actor="parent",
+            event="direct_dyad_invoked",
+            labels=[dyad_id, "direct_invoked"]
+        )
+        storage.append_event(event)
+        
+        logger.info(f"Direct Dyad invocation: {dyad_id} for {family_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in direct Dyad invocation: {e}")
         await message.reply("Sorry, something went wrong. Please try again.")
 
 
@@ -1239,48 +1615,6 @@ async def tag_session(message: Message):
         logger.error(f"Error tagging session: {e}")
         await message.reply("Sorry, couldn't tag the session. Please try again.")
 
-
-def convert_pwa_to_bot_format(pwa_data: dict) -> dict:
-    """Convert PWA session format to bot format."""
-    # Extract features summary and convert format
-    features_summary = pwa_data.get('features_summary', {})
-    converted_features = {
-        'level_dbfs': features_summary.get('level_dbfs_p50', -60),
-        'centroid_norm': features_summary.get('centroid_norm_mean', 0),
-        'rolloff_norm': 0,  # PWA doesn't provide this
-        'flux_norm': features_summary.get('flux_norm_mean', 0),
-        'vad_fraction': features_summary.get('vad_fraction', 0),
-        'stationarity': features_summary.get('stationarity', 0)
-    }
-    
-    # Convert score format
-    score_data = pwa_data.get('score', {})
-    if isinstance(score_data, dict):
-        # Use the mid-term score as the main score
-        converted_score = score_data.get('mid', 0)
-    else:
-        converted_score = score_data
-    
-    # Create converted data
-    converted_data = {
-        'ts_start': pwa_data.get('ts_start', ''),
-        'duration_s': pwa_data.get('duration_s', 0),
-        'mode': pwa_data.get('mode', 'helper'),
-        'family_id': pwa_data.get('family_id', ''),
-        'session_id': pwa_data.get('session_id', ''),
-        'scales': pwa_data.get('scales', {}),
-        'features_summary': converted_features,
-        'score': converted_score,
-        'badges': pwa_data.get('badges', []),
-        'events': pwa_data.get('events', []),
-        'pii': pwa_data.get('pii', False),
-        'version': pwa_data.get('version', 'pwa_0.1')
-    }
-    
-    converted_data["context"] = pwa_data.get("context")
-    converted_data["metrics"] = pwa_data.get("metrics")
-    
-    return converted_data
 
 async def is_reasoner_effectively_enabled(family_id: str) -> bool:
     """

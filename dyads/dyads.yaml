@@ -1,0 +1,123 @@
+# Silli Dyad Registry
+# Central configuration for all available Dyads
+
+dyads:
+  night_helper:
+    dyad_id: "night_helper"
+    name: "Parent Night Helper"
+    icon: "🌙"
+    purpose: "Winds down bedtime tension by analyzing room sound patterns"
+    tone: "Soft, grounding"
+    invocation_text:
+      en: "🌙 Night is when the world softens. The Parent Night Helper Dyad guides you through bedtime wind-downs. It listens to your room environment — and helps you lower the storm gently."
+      pt_br: "🌙 A noite é quando o mundo se acalma. A Dyad de Ajuda Noturna guia o processo de desaceleração na hora de dormir. Ela escuta o ambiente e ajuda a dissolver a tensão com cuidado."
+    launch_cta:
+      en: "Launch Parent Night Helper"
+      pt_br: "Iniciar Ajuda Noturna"
+    more_info_cta:
+      en: "More Info"
+      pt_br: "Mais Informações"
+    reflection_template:
+      en: |
+        🌙 Session complete.
+        The room showed {activity_description}. {suggestion_text}
+        
+        Wind-Down Score: {score}
+        Badges: {badges}
+      pt_br: |
+        🌙 Sessão concluída.
+        O ambiente mostrou {activity_description}. {suggestion_text}
+        
+        Índice de Relaxamento: {score}
+        Sinais: {badges}
+    privacy_text:
+      en: "No raw audio leaves this device. Only derived signals are processed."
+      pt_br: "Nenhum áudio bruto sai deste dispositivo. Apenas sinais derivados são processados."
+    theme:
+      primary_color: "#6366f1"
+      secondary_color: "#8b5cf6"
+      background: "night"
+      symbol: "🌙"
+
+  meal_mood:
+    dyad_id: "meal_mood"
+    name: "Meal Mood Companion"
+    icon: "🍽"
+    purpose: "Transforms mealtime stress into mindful feeding moments"
+    tone: "Nourishing, encouraging"
+    invocation_text:
+      en: "🍽 Mealtime is sacred. The Meal Mood Companion Dyad helps you create peaceful feeding moments. It observes your meal environment and guides you toward mindful nourishment."
+      pt_br: "🍽 A hora da refeição é sagrada. A Dyad Companheira do Humor na Refeição ajuda a criar momentos pacíficos de alimentação. Ela observa o ambiente da refeição e guia para uma nutrição consciente."
+    launch_cta:
+      en: "Launch Meal Mood Companion"
+      pt_br: "Iniciar Companheira do Humor na Refeição"
+    more_info_cta:
+      en: "More Info"
+      pt_br: "Mais Informações"
+    reflection_template:
+      en: |
+        🍽 Session complete.
+        Your meal environment showed {mood_description}. {suggestion_text}
+        
+        Meal Mood Score: {score}
+        Insights: {insights}
+      pt_br: |
+        🍽 Sessão concluída.
+        Seu ambiente de refeição mostrou {mood_description}. {suggestion_text}
+        
+        Pontuação do Humor na Refeição: {score}
+        Insights: {insights}
+    privacy_text:
+      en: "No raw audio leaves this device. Only derived signals are processed."
+      pt_br: "Nenhum áudio bruto sai deste dispositivo. Apenas sinais derivados são processados."
+    theme:
+      primary_color: "#f59e0b"
+      secondary_color: "#d97706"
+      background: "meal"
+      symbol: "🍽"
+
+  tantrum_translator:
+    dyad_id: "tantrum_translator"
+    name: "Tantrum Translator"
+    icon: "🧹"
+    purpose: "Decodes meltdown patterns to reveal underlying needs"
+    tone: "Calm, analytical"
+    invocation_text:
+      en: "🧹 Tantrums are messages in disguise. The Tantrum Translator Dyad listens to the patterns beneath the storm and helps you understand what your child is really saying."
+      pt_br: "🧹 Birras são mensagens disfarçadas. A Dyad Tradutora de Birras escuta os padrões sob a tempestade e ajuda a entender o que seu filho está realmente dizendo."
+    launch_cta:
+      en: "Launch Tantrum Translator"
+      pt_br: "Iniciar Tradutora de Birras"
+    more_info_cta:
+      en: "More Info"
+      pt_br: "Mais Informações"
+    reflection_template:
+      en: |
+        🧹 Session complete.
+        The tantrum pattern revealed {pattern_description}. {suggestion_text}
+        
+        Calm Score: {score}
+        Triggers: {triggers}
+      pt_br: |
+        🧹 Sessão concluída.
+        O padrão da birra revelou {pattern_description}. {suggestion_text}
+        
+        Pontuação de Calma: {score}
+        Gatilhos: {triggers}
+    privacy_text:
+      en: "No raw audio leaves this device. Only derived signals are processed."
+      pt_br: "Nenhum áudio bruto sai deste dispositivo. Apenas sinais derivados são processados."
+    theme:
+      primary_color: "#ef4444"
+      secondary_color: "#dc2626"
+      background: "tantrum"
+      symbol: "🧹"
+
+# Global settings
+settings:
+  token_expiry_minutes: 10
+  default_language: "en"
+  supported_languages: ["en", "pt_br"]
+  privacy_footer:
+    en: "No raw audio leaves this device. Only derived signals are processed."
+    pt_br: "Nenhum áudio bruto sai deste dispositivo. Apenas sinais derivados são processados."

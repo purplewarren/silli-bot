@@ -40,6 +40,7 @@ class FamilyProfile(BaseModel):
     health_notes: str = ""
     lifestyle_tags: List[str] = []
     cloud_reasoning: bool = False  # Per-family reasoner toggle
+    locale: str = "en"  # User language preference
     created_at: datetime
     updated_at: datetime
     version: int = 1
@@ -59,7 +60,7 @@ def _jsonl_safe(obj):
     elif isinstance(obj, collections.abc.Mapping):
         return {k: _jsonl_safe(v) for k, v in obj.items()}
     elif hasattr(obj, 'dict'):
-        return _jsonl_safe(obj.dict())
+        return _jsonl_safe(obj.model_dump())
     else:
         return obj
 
@@ -128,7 +129,7 @@ class ProfilesStore:
         """Save profiles index to JSON file."""
         try:
             data = {
-                family_id: profile.dict()
+                family_id: profile.model_dump()
                 for family_id, profile in self._index.items()
             }
             with open(self.profiles_index_path, 'w', encoding='utf-8') as f:
@@ -194,6 +195,13 @@ class ProfilesStore:
                     return profile
             return None
     
+    def get_profile_by_chat_sync(self, chat_id: int) -> Optional[Dict[str, Any]]:
+        """Get profile by chat ID (sync version for i18n)."""
+        for profile in self._index.values():
+            if chat_id in profile.members:
+                return profile.model_dump()
+        return None
+    
     async def get_profile(self, family_id: str) -> Optional[FamilyProfile]:
         """Get profile by family ID."""
         async with self._get_lock():
@@ -226,7 +234,7 @@ class ProfilesStore:
             # Log creation
             self._append_log({
                 'type': 'UPSERT_PROFILE',
-                'payload': profile.dict()
+                'payload': profile.model_dump()
             })
             
             logger.info(f"Created new family profile: {family_id}")
@@ -258,6 +266,45 @@ class ProfilesStore:
             
             logger.info(f"Updated profile {family_id}: {list(fields.keys())}")
             return profile
+    
+    def upsert_fields_sync(self, chat_id: int, fields: Dict[str, Any]) -> bool:
+        """Update profile fields (sync version for i18n)."""
+        try:
+            # Find family by chat_id
+            family_id = None
+            for fid, profile in self._index.items():
+                if chat_id in profile.members:
+                    family_id = fid
+                    break
+            
+            if not family_id:
+                logger.error(f"No family found for chat_id {chat_id}")
+                return False
+            
+            profile = self._index[family_id]
+            
+            # Update fields
+            for key, value in fields.items():
+                if hasattr(profile, key):
+                    setattr(profile, key, value)
+            
+            profile.updated_at = datetime.now()
+            self._index[family_id] = profile
+            self._save_index()
+            
+            # Log update
+            self._append_log({
+                'type': 'SET_FIELDS',
+                'family_id': family_id,
+                'payload': fields
+            })
+            
+            logger.info(f"Updated profile {family_id}: {list(fields.keys())}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error in upsert_fields_sync: {e}")
+            return False
     
     async def mark_complete(self, family_id: str, value: bool = True) -> FamilyProfile:
         """Mark profile as complete."""

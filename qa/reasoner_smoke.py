@@ -7,6 +7,8 @@ This script tests the complete reasoner flow by:
 2. Testing bot's reasoner integration logic
 3. Verifying that tips are generated correctly
 4. Capturing latency metrics
+5. Testing cache hits (D2)
+6. Testing reasoner disabled fallback (G1)
 """
 
 import json
@@ -16,6 +18,7 @@ import aiohttp
 import subprocess
 import sys
 import os
+import argparse
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -26,10 +29,11 @@ sys.path.append(str(Path(__file__).parent.parent))
 class ReasonerSmokeTest:
     """Smoke test for reasoner integration"""
     
-    def __init__(self):
+    def __init__(self, reasoner_off: bool = False):
         self.reasoner_url = "http://localhost:5001"
         self.family_id = "fam_smoke_test"
         self.test_results = []
+        self.reasoner_off = reasoner_off
         
     async def test_reasoner_directly(self, dyad: str, session_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -139,6 +143,104 @@ class ReasonerSmokeTest:
             print(f"❌ Error checking logs: {e}")
             return None
 
+    async def test_cache_hit(self, dyad: str, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Test cache hit by making identical requests
+        
+        Args:
+            dyad: The dyad type
+            session_data: Session data to test
+            
+        Returns:
+            Test result dictionary
+        """
+        print(f"🧪 Testing cache hit for {dyad}")
+        
+        # First call (should be cache MISS)
+        print("📤 First call (expected cache MISS)...")
+        first_result = await self.test_reasoner_directly(dyad, session_data)
+        
+        if not first_result["success"]:
+            return {
+                "success": False,
+                "error": "First call failed",
+                "first_result": first_result
+            }
+        
+        # Second call (should be cache HIT)
+        print("📤 Second call (expected cache HIT)...")
+        second_result = await self.test_reasoner_directly(dyad, session_data)
+        
+        if not second_result["success"]:
+            return {
+                "success": False,
+                "error": "Second call failed",
+                "first_result": first_result,
+                "second_result": second_result
+            }
+        
+        # Check cache status
+        first_cache = first_result.get("cache_status", "UNKNOWN")
+        second_cache = second_result.get("cache_status", "UNKNOWN")
+        second_latency = second_result.get("latency_ms", 0)
+        
+        cache_hit = second_cache == "HIT"
+        latency_ok = second_latency < 15  # Should be very fast for cache hit
+        
+        print(f"📊 Cache analysis:")
+        print(f"   First call: {first_cache}")
+        print(f"   Second call: {second_cache}")
+        print(f"   Cache hit: {'✅' if cache_hit else '❌'}")
+        print(f"   Latency: {second_latency}ms {'✅' if latency_ok else '❌'}")
+        
+        return {
+            "success": True,
+            "cache_hit": cache_hit,
+            "latency_ok": latency_ok,
+            "first_result": first_result,
+            "second_result": second_result
+        }
+
+    async def test_reasoner_disabled_fallback(self, dyad: str, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Test reasoner disabled fallback
+        
+        Args:
+            dyad: The dyad type
+            session_data: Session data to test
+            
+        Returns:
+            Test result dictionary
+        """
+        print(f"🧪 Testing reasoner disabled fallback for {dyad}")
+        
+        # Temporarily disable reasoner
+        original_env = os.environ.get("REASONER_ENABLED", "1")
+        os.environ["REASONER_ENABLED"] = "0"
+        
+        try:
+            # Make request (should complete without reasoner)
+            result = await self.test_reasoner_directly(dyad, session_data)
+            
+            # Check if it completed without tips (reasoner disabled)
+            tips_empty = len(result.get("tips", [])) == 0
+            completed = result["success"]
+            
+            print(f"📊 Fallback analysis:")
+            print(f"   Completed: {'✅' if completed else '❌'}")
+            print(f"   No tips: {'✅' if tips_empty else '❌'}")
+            
+            return {
+                "success": completed and tips_empty,
+                "completed": completed,
+                "tips_empty": tips_empty,
+                "result": result
+            }
+            
+        finally:
+            # Restore original environment
+            os.environ["REASONER_ENABLED"] = original_env
+
     async def run_smoke_test(self) -> bool:
         """
         Run the complete smoke test
@@ -195,25 +297,75 @@ class ReasonerSmokeTest:
             "tips_found": len(result.get("tips", [])) > 0 if result["success"] else False
         })
         
+        # Test 3: Cache hit (D2)
+        print("\n🧪 Test 3: Cache Hit (D2)")
+        print("-" * 30)
+        
+        cache_result = await self.test_cache_hit("tantrum", tantrum_session)
+        
+        self.test_results.append({
+            "test": "cache_hit",
+            "success": cache_result["success"],
+            "cache_hit": cache_result.get("cache_hit", False),
+            "latency_ok": cache_result.get("latency_ok", False)
+        })
+        
+        # Test 4: Reasoner disabled fallback (G1)
+        print("\n🧪 Test 4: Reasoner Disabled Fallback (G1)")
+        print("-" * 30)
+        
+        fallback_result = await self.test_reasoner_disabled_fallback("meal", meal_session)
+        
+        self.test_results.append({
+            "test": "reasoner_fallback",
+            "success": fallback_result["success"],
+            "completed": fallback_result.get("completed", False),
+            "tips_empty": fallback_result.get("tips_empty", False)
+        })
+        
         # Print summary
         print("\n📊 Test Summary")
         print("=" * 50)
         
         all_passed = True
         for result in self.test_results:
-            status = "✅ PASS" if result["success"] and result["tips_found"] else "❌ FAIL"
-            latency_str = f"{result['latency_ms']}ms" if result['latency_ms'] is not None else "N/A"
-            print(f"{result['test'].title()}: {status} (latency: {latency_str})")
+            test_name = result['test'].replace('_', ' ').title()
             
-            if not (result["success"] and result["tips_found"]):
-                all_passed = False
+            if result['test'] == 'cache_hit':
+                status = "✅ PASS" if result["success"] and result["cache_hit"] and result["latency_ok"] else "❌ FAIL"
+                details = f"cache: {'HIT' if result['cache_hit'] else 'MISS'}, latency: {'OK' if result['latency_ok'] else 'SLOW'}"
+            elif result['test'] == 'reasoner_fallback':
+                status = "✅ PASS" if result["success"] and result["completed"] and result["tips_empty"] else "❌ FAIL"
+                details = f"completed: {'YES' if result['completed'] else 'NO'}, tips: {'EMPTY' if result['tips_empty'] else 'PRESENT'}"
+            else:
+                status = "✅ PASS" if result["success"] and result["tips_found"] else "❌ FAIL"
+                latency_str = f"{result['latency_ms']}ms" if result['latency_ms'] is not None else "N/A"
+                details = f"latency: {latency_str}"
+            
+            print(f"{test_name}: {status} ({details})")
+            
+            # Check if this test passed
+            if result['test'] == 'cache_hit':
+                if not (result["success"] and result["cache_hit"] and result["latency_ok"]):
+                    all_passed = False
+            elif result['test'] == 'reasoner_fallback':
+                if not (result["success"] and result["completed"] and result["tips_empty"]):
+                    all_passed = False
+            else:
+                if not (result["success"] and result["tips_found"]):
+                    all_passed = False
         
         print(f"\n🎯 Overall Result: {'✅ PASS' if all_passed else '❌ FAIL'}")
         return all_passed
 
 async def main():
     """Main entry point"""
-    smoke_test = ReasonerSmokeTest()
+    parser = argparse.ArgumentParser(description="Reasoner Smoke Test")
+    parser.add_argument("--reasoner-off", action="store_true", 
+                       help="Test with reasoner disabled (G1 test)")
+    args = parser.parse_args()
+    
+    smoke_test = ReasonerSmokeTest(reasoner_off=args.reasoner_off)
     
     try:
         success = await smoke_test.run_smoke_test()

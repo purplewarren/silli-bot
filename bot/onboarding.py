@@ -165,6 +165,8 @@ async def save_family_name(message: Message, state: FSMContext):
         family_id = f"fam_{message.chat.id}"
         family_name = message.text.strip()
         
+        logger.info(f"Processing family name: '{family_name}' for {family_id}")
+        
         if not family_name or len(family_name) < 2:
             await message.reply("Please enter a valid family name (at least 2 characters).")
             return
@@ -186,7 +188,14 @@ async def save_family_name(message: Message, state: FSMContext):
             "created_at": datetime.now().isoformat()
         }
         
-        profiles.upsert_profile(profile_data)
+        logger.info(f"Creating profile with data: {profile_data}")
+        
+        try:
+            profiles.upsert_profile(profile_data)
+            logger.info(f"Profile created successfully for {family_id}")
+        except Exception as profile_error:
+            logger.error(f"Error creating profile: {profile_error}")
+            raise
         
         await message.answer(
             f"Great. We've created your Family Profile: \"{family_name}\".\n\n"
@@ -197,7 +206,13 @@ async def save_family_name(message: Message, state: FSMContext):
         await asyncio.sleep(2)
         
         # Mark profile as complete
-        profiles.upsert_fields(family_id, {"complete": True})
+        try:
+            profiles.upsert_fields(family_id, {"complete": True})
+            logger.info(f"Profile marked complete for {family_id}")
+        except Exception as complete_error:
+            logger.error(f"Error marking profile complete: {complete_error}")
+            # Don't fail the whole process if this fails
+            pass
         
         await message.answer(
             f"✅ Done. You're now the first member of \"{family_name}\".\n\n"
@@ -225,6 +240,7 @@ async def save_family_name(message: Message, state: FSMContext):
         
     except Exception as e:
         logger.error(f"Error in save family name: {e}")
+        logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
         await message.reply("Sorry, something went wrong. Please try again.")
 
 # ========== EXISTING FAMILY FLOW ==========
@@ -293,16 +309,6 @@ async def receive_family_id(message: Message, state: FSMContext):
     except Exception as e:
         logger.error(f"Error in receive family id: {e}")
         await message.reply("Sorry, something went wrong. Please try again.")
-
-# ========== PROTECT FEATURES ==========
-@router_onboarding.message()
-async def protect_features(message: Message, state: FSMContext):
-    """Protect features for users who haven't completed onboarding."""
-    current_state = await state.get_state()
-    if current_state and current_state.startswith("Onboarding"):
-        await message.reply("🔐 Please finish onboarding first. Type /start to begin.")
-    else:
-        await message.reply("Unrecognized command. Type /help for options.")
 
 # ========== CANCEL ONBOARDING ==========
 @router_onboarding.message(Command("cancel"))

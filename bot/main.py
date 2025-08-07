@@ -72,8 +72,11 @@ async def set_commands(bot):
     commands = [
         types.BotCommand(command="start", description="Begin onboarding and consent to privacy notice"),
         types.BotCommand(command="help", description="See all available commands"),
-        types.BotCommand(command="dyads", description="Show all available helpers"),
-        types.BotCommand(command="summon_helper", description="Open the Parent Night Helper (PWA)"),
+        types.BotCommand(command="lang", description="Change language (en/pt_br)"),
+        types.BotCommand(command="summon_helper", description="Choose and summon a helper (Dyad)"),
+        types.BotCommand(command="summon_night_helper", description="Summon Parent Night Helper"),
+        types.BotCommand(command="summon_meal_mood", description="Summon Meal Mood Companion"),
+        types.BotCommand(command="summon_tantrum_translator", description="Summon Tantrum Translator"),
         types.BotCommand(command="analyze", description="Send a voice note for quick analysis"),
         types.BotCommand(command="insights", description="View AI-aided insights from your sessions"),
         types.BotCommand(command="privacy_offline", description="Stop proactive messages (reply-only mode)"),
@@ -116,7 +119,9 @@ async def main():
         
         # Include routers (order matters - more specific routers first)
         from .onboarding import router_onboarding
+        from .handlers_i18n import router_i18n
         dp.include_router(router_onboarding)  # Include first for state management
+        dp.include_router(router_i18n)  # Include i18n router early
         dp.include_router(router_profile)
         dp.include_router(router_insights)
         dp.include_router(router)  # Main router last (catch-all)

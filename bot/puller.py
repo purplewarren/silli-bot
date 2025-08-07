@@ -9,7 +9,7 @@ import aiohttp
 from .models import EventRecord, PwaSessionReport
 from .storage import Storage
 from .families import FamiliesStore
-from .handlers import convert_pwa_to_bot_format  # reuse same converter
+from .utils import convert_pwa_to_bot_format  # use utils instead of handlers
 
 RELAY_PULL_URL = os.getenv("RELAY_PULL_URL", "https://silli-auto-ingest-relay.silli-tg-bot.workers.dev/pull")
 RELAY_SECRET   = os.getenv("RELAY_SECRET")
