@@ -10,6 +10,7 @@ from .reason_client import create_reasoner_config
 import json
 from datetime import datetime
 from pathlib import Path
+import asyncio
 
 router_commands = Router()
 
@@ -371,6 +372,55 @@ async def more_command(message: Message):
     await message.answer(text)
 
 
+@router_commands.message(Command("scheduler"))
+async def scheduler_command(message: Message):
+    """Show scheduler status and controls."""
+    locale = get_locale(message.chat.id)
+    
+    # Get scheduler status
+    from .scheduler import get_scheduler_status
+    status = get_scheduler_status()
+    
+    if locale == "pt_br":
+        text = "⏰ **Status do Agendador Proativo**\n\n"
+        text += f"**Status:** {'🟢 Ativo' if status['running'] else '🔴 Inativo'}\n"
+        text += f"**Intervalo:** {status['interval_hours']} horas\n"
+        text += f"**Famílias com insights:** {len(status['last_insight_times'])}\n\n"
+        
+        if status['last_insight_times']:
+            text += "**Últimos insights enviados:**\n"
+            for family_id, last_time in list(status['last_insight_times'].items())[:5]:
+                text += f"• {family_id}: {last_time}\n"
+        
+        start_text = "▶️ Iniciar"
+        stop_text = "⏹️ Parar"
+        test_text = "🧪 Testar Insight"
+    else:
+        text = "⏰ **Proactive Scheduler Status**\n\n"
+        text += f"**Status:** {'🟢 Active' if status['running'] else '🔴 Inactive'}\n"
+        text += f"**Interval:** {status['interval_hours']} hours\n"
+        text += f"**Families with insights:** {len(status['last_insight_times'])}\n\n"
+        
+        if status['last_insight_times']:
+            text += "**Last insights sent:**\n"
+            for family_id, last_time in list(status['last_insight_times'].items())[:5]:
+                text += f"• {family_id}: {last_time}\n"
+        
+        start_text = "▶️ Start"
+        stop_text = "⏹️ Stop"
+        test_text = "🧪 Test Insight"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=start_text, callback_data="scheduler:start"),
+            InlineKeyboardButton(text=stop_text, callback_data="scheduler:stop")
+        ],
+        [InlineKeyboardButton(text=test_text, callback_data="scheduler:test")]
+    ])
+    
+    await message.answer(text, reply_markup=keyboard)
+
+
 # Callback handlers for command buttons
 @router_commands.callback_query(F.data.startswith("dyad:summon:"))
 async def handle_dyad_summon(callback: CallbackQuery):
@@ -417,3 +467,82 @@ async def handle_dyad_summon(callback: CallbackQuery):
         else:
             text = "❌ Error creating Dyad link."
         await callback.message.edit_text(text)
+
+
+@router_commands.callback_query(F.data.startswith("scheduler:"))
+async def handle_scheduler_controls(callback: CallbackQuery):
+    """Handle scheduler control callbacks."""
+    await callback.answer()
+    
+    action = callback.data.split(":")[1]
+    locale = get_locale(callback.message.chat.id)
+    
+    if action == "start":
+        from .scheduler import scheduler
+        if not scheduler.running:
+            asyncio.create_task(scheduler.start())
+            if locale == "pt_br":
+                text = "✅ Agendador iniciado com sucesso!"
+            else:
+                text = "✅ Scheduler started successfully!"
+        else:
+            if locale == "pt_br":
+                text = "ℹ️ Agendador já está ativo."
+            else:
+                text = "ℹ️ Scheduler is already running."
+    
+    elif action == "stop":
+        from .scheduler import scheduler
+        if scheduler.running:
+            await scheduler.stop()
+            if locale == "pt_br":
+                text = "⏹️ Agendador parado com sucesso!"
+            else:
+                text = "⏹️ Scheduler stopped successfully!"
+        else:
+            if locale == "pt_br":
+                text = "ℹ️ Agendador já está parado."
+            else:
+                text = "ℹ️ Scheduler is already stopped."
+    
+    elif action == "test":
+        # Test insight generation for the user's family
+        profile = profiles.get_profile_by_chat_sync(callback.message.chat.id)
+        if not profile or not profile.get("family_id"):
+            if locale == "pt_br":
+                text = "❌ Nenhum perfil familiar encontrado."
+            else:
+                text = "❌ No family profile found."
+        else:
+            family_id = profile["family_id"]
+            family = await families.get_family(family_id)
+            if not family:
+                if locale == "pt_br":
+                    text = "❌ Família não encontrada."
+                else:
+                    text = "❌ Family not found."
+            else:
+                # Generate a test insight
+                from .scheduler import ProactiveScheduler
+                test_scheduler = ProactiveScheduler()
+                context = await test_scheduler.build_family_context(family)
+                insight = await test_scheduler.generate_insight(family, context)
+                
+                if insight:
+                    if locale == "pt_br":
+                        text = f"🧪 **Insight de Teste**\n\n{insight}"
+                    else:
+                        text = f"🧪 **Test Insight**\n\n{insight}"
+                else:
+                    if locale == "pt_br":
+                        text = "❌ Erro ao gerar insight de teste."
+                    else:
+                        text = "❌ Error generating test insight."
+    
+    else:
+        if locale == "pt_br":
+            text = "❌ Ação desconhecida."
+        else:
+            text = "❌ Unknown action."
+    
+    await callback.message.edit_text(text)

@@ -79,6 +79,7 @@ async def set_commands(bot):
         types.BotCommand(command="familyprofile", description="Family profile dashboard"),
         types.BotCommand(command="summondyad", description="List enabled Dyads"),
         types.BotCommand(command="feedback", description="Send feedback"),
+        types.BotCommand(command="scheduler", description="Proactive scheduler status"),
         types.BotCommand(command="more", description="Show all legacy commands"),
         # Legacy commands (hidden but available)
         types.BotCommand(command="summon_helper", description="Choose and summon a helper (Dyad)"),
@@ -142,6 +143,10 @@ async def main():
         
         # Start background pull loop
         asyncio.create_task(start_pull_loop(bot))
+        
+        # Start proactive scheduler
+        from .scheduler import start_scheduler
+        asyncio.create_task(start_scheduler())
         
         # Register commands
         await set_commands(bot)
