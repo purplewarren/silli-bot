@@ -46,6 +46,31 @@ async def handle_dyad_toggle(callback: CallbackQuery):
         await callback.message.edit_text(text)
         return
     
+    # Show consent for Dyad before enabling
+    locale = get_locale(callback.message.chat.id)
+    consent_text = dyad_registry.get_dyad_consent_text(dyad_id, locale)
+    
+    dyad_info = dyad_registry.get_dyad(dyad_id)
+    dyad_name = dyad_info.get("name", dyad_id) if dyad_info else dyad_id
+    
+    if locale == "pt_br":
+        text = f"🔒 **{dyad_name} - Consentimento**\n\n{consent_text}\n\nDeseja ativar este Dyad?"
+        yes_text = "✅ Sim, Ativar"
+        no_text = "❌ Não, Cancelar"
+    else:
+        text = f"🔒 **{dyad_name} - Consent**\n\n{consent_text}\n\nDo you want to enable this Dyad?"
+        yes_text = "✅ Yes, Enable"
+        no_text = "❌ No, Cancel"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text=yes_text, callback_data=f"dyad:consent:yes:{dyad_id}"),
+            InlineKeyboardButton(text=no_text, callback_data=f"dyad:consent:no:{dyad_id}")
+        ]
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard)
+    
     # Get current family profile
     profile = profiles.get_profile_by_chat_sync(callback.message.chat.id)
     if not profile or not profile.get("family_id"):
@@ -178,3 +203,69 @@ async def handle_view_family_members(callback: CallbackQuery):
             await callback.message.edit_text("❌ Erro ao carregar membros da família.")
         else:
             await callback.message.edit_text("❌ Error loading family members.")
+
+
+@router_family_create.callback_query(F.data.startswith("dyad:consent:"))
+async def handle_dyad_consent(callback: CallbackQuery):
+    """Handle Dyad consent responses."""
+    await callback.answer()
+    
+    parts = callback.data.split(":")
+    consent = parts[2]  # "yes" or "no"
+    dyad_id = parts[3]
+    
+    locale = get_locale(callback.message.chat.id)
+    
+    if consent == "no":
+        # User declined consent, go back to Dyad selection
+        await show_dyad_selection(callback.message)
+        return
+    
+    # User accepted consent, enable the Dyad
+    profile = profiles.get_profile_by_chat_sync(callback.message.chat.id)
+    if not profile or not profile.get("family_id"):
+        if locale == "pt_br":
+            await callback.message.edit_text("❌ Nenhum perfil familiar encontrado.")
+        else:
+            await callback.message.edit_text("❌ No family profile found.")
+        return
+    
+    family_id = profile["family_id"]
+    
+    try:
+        family = await families.get_family(family_id)
+        if not family:
+            if locale == "pt_br":
+                await callback.message.edit_text("❌ Família não encontrada.")
+            else:
+                await callback.message.edit_text("❌ Family not found.")
+            return
+        
+        enabled_dyads = list(family.enabled_dyads or [])
+        if dyad_id not in enabled_dyads:
+            enabled_dyads.append(dyad_id)
+        
+        # Update family with new dyad settings
+        await families.upsert_fields(family_id, enabled_dyads=enabled_dyads)
+        
+        dyad_info = dyad_registry.get_dyad(dyad_id)
+        dyad_name = dyad_info.get("name", dyad_id) if dyad_info else dyad_id
+        
+        if locale == "pt_br":
+            text = f"✅ **{dyad_name} Ativado**\n\nO Dyad foi ativado com sucesso para sua família."
+        else:
+            text = f"✅ **{dyad_name} Enabled**\n\nThe Dyad has been successfully enabled for your family."
+        
+        await callback.message.edit_text(text)
+        
+        # Show Dyad selection again after a short delay
+        import asyncio
+        await asyncio.sleep(2)
+        await show_dyad_selection(callback.message)
+        
+    except Exception as e:
+        logger.error(f"Error enabling dyad {dyad_id}: {e}")
+        if locale == "pt_br":
+            await callback.message.edit_text("❌ Erro ao ativar Dyad.")
+        else:
+            await callback.message.edit_text("❌ Error enabling Dyad.")

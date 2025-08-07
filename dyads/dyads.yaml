@@ -33,6 +33,29 @@ dyads:
     privacy_text:
       en: "No raw audio leaves this device. Only derived signals are processed."
       pt_br: "Nenhum áudio bruto sai deste dispositivo. Apenas sinais derivados são processados."
+    consent_text:
+      en: |
+        **Privacy & Consent**
+        
+        This Dyad analyzes your environment to provide insights. 
+        
+        • No raw audio is recorded or transmitted
+        • Only derived signals (patterns, frequencies) are processed
+        • All analysis happens locally on your device
+        • You control what data is shared
+        
+        By enabling this Dyad, you consent to this privacy-first approach.
+      pt_br: |
+        **Privacidade e Consentimento**
+        
+        Esta Dyad analisa seu ambiente para fornecer insights.
+        
+        • Nenhum áudio bruto é gravado ou transmitido
+        • Apenas sinais derivados (padrões, frequências) são processados
+        • Toda análise acontece localmente no seu dispositivo
+        • Você controla quais dados são compartilhados
+        
+        Ao ativar esta Dyad, você consente com esta abordagem de privacidade.
     theme:
       primary_color: "#6366f1"
       secondary_color: "#8b5cf6"
@@ -70,6 +93,29 @@ dyads:
     privacy_text:
       en: "No raw audio leaves this device. Only derived signals are processed."
       pt_br: "Nenhum áudio bruto sai deste dispositivo. Apenas sinais derivados são processados."
+    consent_text:
+      en: |
+        **Privacy & Consent**
+        
+        This Dyad analyzes your environment to provide insights. 
+        
+        • No raw audio is recorded or transmitted
+        • Only derived signals (patterns, frequencies) are processed
+        • All analysis happens locally on your device
+        • You control what data is shared
+        
+        By enabling this Dyad, you consent to this privacy-first approach.
+      pt_br: |
+        **Privacidade e Consentimento**
+        
+        Esta Dyad analisa seu ambiente para fornecer insights.
+        
+        • Nenhum áudio bruto é gravado ou transmitido
+        • Apenas sinais derivados (padrões, frequências) são processados
+        • Toda análise acontece localmente no seu dispositivo
+        • Você controla quais dados são compartilhados
+        
+        Ao ativar esta Dyad, você consente com esta abordagem de privacidade.
     theme:
       primary_color: "#f59e0b"
       secondary_color: "#d97706"
@@ -107,6 +153,29 @@ dyads:
     privacy_text:
       en: "No raw audio leaves this device. Only derived signals are processed."
       pt_br: "Nenhum áudio bruto sai deste dispositivo. Apenas sinais derivados são processados."
+    consent_text:
+      en: |
+        **Privacy & Consent**
+        
+        This Dyad analyzes your environment to provide insights. 
+        
+        • No raw audio is recorded or transmitted
+        • Only derived signals (patterns, frequencies) are processed
+        • All analysis happens locally on your device
+        • You control what data is shared
+        
+        By enabling this Dyad, you consent to this privacy-first approach.
+      pt_br: |
+        **Privacidade e Consentimento**
+        
+        Esta Dyad analisa seu ambiente para fornecer insights.
+        
+        • Nenhum áudio bruto é gravado ou transmitido
+        • Apenas sinais derivados (padrões, frequências) são processados
+        • Toda análise acontece localmente no seu dispositivo
+        • Você controla quais dados são compartilhados
+        
+        Ao ativar esta Dyad, você consente com esta abordagem de privacidade.
     theme:
       primary_color: "#ef4444"
       secondary_color: "#dc2626"

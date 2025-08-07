@@ -114,6 +114,18 @@ class DyadRegistry:
         
         return str(text_data)
     
+    def get_dyad_consent_text(self, dyad_id: str, language: str = "en") -> str:
+        """Get consent text for a Dyad."""
+        dyad = self.get_dyad(dyad_id)
+        if not dyad:
+            return f"Unknown Dyad: {dyad_id}"
+        
+        consent_data = dyad.get("consent_text", {})
+        if isinstance(consent_data, dict):
+            return consent_data.get(language, consent_data.get("en", "Consent text not available"))
+        
+        return str(consent_data)
+    
     def create_dyad_url(self, family_id: str, dyad_id: str, language: str = "en") -> str:
         """Create PWA URL for Dyad session."""
         try:
