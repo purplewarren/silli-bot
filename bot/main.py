@@ -120,9 +120,13 @@ async def main():
         # Include routers (order matters - more specific routers first)
         from .handlers_gate import router_gate
         from .handlers_onboarding import router_onboarding
+        from .handlers_family_link import router_family_link
+        from .handlers_family_create import router_family_create
         from .handlers_i18n import router_i18n
         dp.include_router(router_gate)  # Gate callbacks first
         dp.include_router(router_onboarding)  # Include first for state management
+        dp.include_router(router_family_link)  # Family linking
+        dp.include_router(router_family_create)  # Family creation
         dp.include_router(router_i18n)  # Include i18n router early
         dp.include_router(router_profile)
         dp.include_router(router_insights)

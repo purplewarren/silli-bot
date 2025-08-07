@@ -393,18 +393,20 @@ async def complete_family_creation(message: Message, state: FSMContext):
     # Create family profile
     family_data = {
         "family_id": family_id,
+        "creator_chat_id": message.chat.id,
+        "members": [message.chat.id],
         "parent_name": data.get("parent_name"),
-        "has_partner": data.get("has_partner", False),
         "children": [{
             "name": data.get("child_name"),
             "sex": data.get("child_sex"),
-            "age": data.get("child_age"),
+            "age_years": float(data.get("child_age", 0)),
             "health_notes": data.get("health_notes", "")
         }],
-        "lifestyle_tags": data.get("lifestyle_tags", ""),
-        "has_pets": data.get("has_pets", False),
-        "enabled_dyads": set(),  # Empty set for now
-        "created_at": datetime.now().isoformat()
+        "lifestyle_tags": data.get("lifestyle_tags", "").split(", ") if data.get("lifestyle_tags") else [],
+        "enabled_dyads": [],
+        "status": "active",
+        "created_at": datetime.now(),
+        "updated_at": datetime.now()
     }
     
     # Save family profile
