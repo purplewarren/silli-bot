@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: silli-bot-staging
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN_STAGING}
+      - REASONER_ENABLED=1
+      - PWA_HOST=https://staging.silli.ai
+      - DYAD_REGISTRY_PATH=dyads/dyads.yaml
+      - PROACTIVE_CRON_S=10800  # 3 hours
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    ports:
+      - "8000:8000"
+    depends_on:
+      - reasoner
+    networks:
+      - silli-network
+
+  reasoner:
+    image: ollama/ollama:latest
+    container_name: silli-reasoner-staging
+    restart: unless-stopped
+    ports:
+      - "5001:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - silli-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: silli-nginx-staging
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - bot
+    networks:
+      - silli-network
+
+volumes:
+  ollama_data:
+
+networks:
+  silli-network:
+    driver: bridge
