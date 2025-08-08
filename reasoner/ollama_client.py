@@ -41,7 +41,7 @@ class OllamaClient:
         self.host = host or os.getenv('OLLAMA_HOST', 'http://localhost:11434')
         self.base_url = f"{self.host}/api"
         
-    def post_chat(self, messages: List[OllamaMessage], temperature: float = 0.2, model: str = "gpt-oss-20b") -> str:
+    def post_chat(self, messages: List[OllamaMessage], temperature: float = 0.2, model: str = "gpt-oss:20b") -> str:
         """
         Send chat completion request to Ollama
         
@@ -64,7 +64,8 @@ class OllamaClient:
             
             # Send request
             url = f"{self.base_url}/chat"
-            response = requests.post(url, json=request_data, timeout=30)
+            timeout = int(os.getenv('REASONER_TIMEOUT', 60))  # Use configurable timeout, default 60s
+            response = requests.post(url, json=request_data, timeout=timeout)
             
             if response.status_code != 200:
                 raise Exception(f"Ollama API error: {response.status_code} - {response.text}")

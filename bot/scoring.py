@@ -180,4 +180,8 @@ class WindDownScorer:
         badges = self.determine_badges(features)
         tips = self.select_tips(score, badges)
         
-        return score, badges, tips 
+        return score, badges, tips
+
+
+# Global instance
+wind_down_scorer = WindDownScorer() 

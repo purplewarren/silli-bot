@@ -115,4 +115,8 @@ class Storage:
         except Exception as e:
             logger.error(f"Error reading events for family {family_id}: {e}")
         
-        return events 
+        return events
+
+
+# Global instance
+storage = Storage() 

@@ -7,7 +7,7 @@ Integrates with local Ollama runtime for generating tips and rationale
 import json
 import os
 import time
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple, Union
 from dataclasses import dataclass, asdict
 from flask import Flask, request, jsonify
 from ollama_client import OllamaClient, create_system_message, create_user_message
@@ -17,11 +17,20 @@ from cache import ReasonerCache
 
 app = Flask(__name__)
 
+# Configuration from environment
+REASONER_MODEL_HINT = os.getenv('REASONER_MODEL_HINT', 'llama3.2:1b')
+REASONER_ALLOW_FALLBACK = os.getenv('REASONER_ALLOW_FALLBACK', '1').lower() in ('1', 'true', 'yes')
+
 # Initialize Ollama client
 ollama_client = OllamaClient()
 
 # Initialize cache
 cache = ReasonerCache()
+
+# Track model usage for visibility
+last_model_used = None
+fallback_occurred = False
+fallback_reason = None
 
 @dataclass
 class ReasoningRequest:
@@ -36,6 +45,51 @@ class ReasoningResponse:
     tips: List[str]  # Up to 2 actionable tips
     rationale: str  # Explanation of reasoning
     metric_overrides: Optional[Dict[str, float]] = None  # Optional metric adjustments
+
+def determine_model_to_use() -> Tuple[Optional[str], bool, Optional[str]]:
+    """
+    Determine which model to use based on availability and configuration.
+    
+    Returns:
+        tuple: (model_name, fallback_occurred, fallback_reason)
+    """
+    global last_model_used, fallback_occurred, fallback_reason
+    
+    try:
+        # Get available models
+        available_models = ollama_client.list_models()
+        available_model_names = [model.get('name', '') for model in available_models]
+        
+        # Check if hinted model is available
+        if REASONER_MODEL_HINT in available_model_names:
+            last_model_used = REASONER_MODEL_HINT
+            fallback_occurred = False
+            fallback_reason = None
+            return REASONER_MODEL_HINT, False, None
+        
+        # Hinted model not available
+        if not REASONER_ALLOW_FALLBACK:
+            # Strict mode - return error info
+            fallback_occurred = False
+            fallback_reason = f"Model {REASONER_MODEL_HINT} not available, fallback disabled"
+            return None, False, fallback_reason
+        
+        # Fallback mode - find any available model
+        if available_model_names:
+            fallback_model = available_model_names[0]  # Use first available
+            last_model_used = fallback_model
+            fallback_occurred = True
+            fallback_reason = f"Model {REASONER_MODEL_HINT} not available, using {fallback_model}"
+            print(f"⚠️ Model fallback: {fallback_reason}")
+            return fallback_model, True, fallback_reason
+        
+        # No models available at all
+        fallback_reason = "No models available"
+        return None, False, fallback_reason
+        
+    except Exception as e:
+        fallback_reason = f"Error checking models: {str(e)}"
+        return None, False, fallback_reason
 
 def redact_pii(data: Dict[str, Any]) -> Dict[str, Any]:
     """Remove PII fields from data"""
@@ -179,6 +233,22 @@ def reason():
         if reasoning_request.dyad not in ['night', 'tantrum', 'meal']:
             return jsonify({'error': 'Invalid dyad. Must be night, tantrum, or meal'}), 400
         
+        # Determine which model to use
+        model_to_use, is_fallback, model_fallback_reason = determine_model_to_use()
+        
+        # If no model available and fallback disabled, return 503
+        if model_to_use is None:
+            if not REASONER_ALLOW_FALLBACK:
+                return jsonify({
+                    'error': 'model_unavailable',
+                    'hint': REASONER_MODEL_HINT,
+                    'reason': model_fallback_reason
+                }), 503
+            else:
+                return jsonify({
+                    'error': f'No models available: {model_fallback_reason}'
+                }), 503
+        
         # Check cache first (if enabled)
         cache_hit = False
         if cache.is_enabled():
@@ -193,11 +263,15 @@ def reason():
                 cache_hit = True
                 response_time = time.time() - start_time
                 
-                # Return cached response with cache hit header
+                # Log cache hit with model info
+                print(f"reasoner_call dyad={reasoning_request.dyad} model={model_to_use} cache=HIT latency_ms={int(response_time * 1000)}")
+                
+                # Return cached response with cache hit header and model info
                 response = jsonify({
                     'tips': cached_response['tips'],
                     'rationale': cached_response['rationale'],
                     'metric_overrides': cached_response['metric_overrides'],
+                    'model_used': model_to_use,
                     'response_time': round(response_time, 2),
                     'dyad': reasoning_request.dyad,
                     'cache_status': 'HIT'
@@ -230,11 +304,11 @@ Constraints:
             create_user_message(user_message)
         ]
         
-        # Call Ollama
+        # Call Ollama with determined model
         ollama_response = ollama_client.post_chat(
             messages=messages,
             temperature=0.2,
-            model="llama3.2:3b"
+            model=model_to_use
         )
         
         # Parse response
@@ -242,6 +316,14 @@ Constraints:
         
         # Calculate response time
         response_time = time.time() - start_time
+        
+        # Log reasoning call with details
+        cache_status = 'HIT' if cache_hit else 'MISS'
+        fallback_status = 1 if is_fallback else 0
+        print(f"reasoner_call dyad={reasoning_request.dyad} model={model_to_use} cache={cache_status} latency_ms={int(response_time * 1000)} fallback={fallback_status}")
+        
+        if is_fallback:
+            print(f"⚠️ fallback=1 reason={model_fallback_reason}")
         
         # Cache the response (if enabled and not already cached)
         if cache.is_enabled() and not cache_hit:
@@ -257,21 +339,19 @@ Constraints:
                 }
             )
         
-        # Return response
+        # Return response with model info
         response = jsonify({
             'tips': reasoning_response.tips,
             'rationale': reasoning_response.rationale,
             'metric_overrides': reasoning_response.metric_overrides,
+            'model_used': model_to_use,
             'response_time': round(response_time, 2),
             'dyad': reasoning_request.dyad,
-            'cache_status': 'HIT' if cache_hit else 'MISS'
+            'cache_status': cache_status
         })
         
         # Set cache header
-        if cache_hit:
-            response.headers['X-Reasoner-Cache'] = 'HIT'
-        else:
-            response.headers['X-Reasoner-Cache'] = 'MISS'
+        response.headers['X-Reasoner-Cache'] = cache_status
         
         return response
         
@@ -293,6 +373,36 @@ def list_models():
         })
     except Exception as e:
         return jsonify({'error': f'Failed to list models: {str(e)}'}), 500
+
+@app.route('/status', methods=['GET'])
+def reasoner_status():
+    """Get reasoner model status and configuration"""
+    try:
+        # Get cache stats if available
+        cache_stats = {}
+        try:
+            cache_stats = cache.get_stats()
+        except:
+            cache_stats = {'enabled': False}
+        
+        # Calculate cache hit rate
+        cache_hit_rate = 0.0
+        if cache_stats.get('hits', 0) + cache_stats.get('misses', 0) > 0:
+            cache_hit_rate = cache_stats['hits'] / (cache_stats['hits'] + cache_stats['misses'])
+        
+        return jsonify({
+            'enabled': True,
+            'model_hint': REASONER_MODEL_HINT,
+            'allow_fallback': REASONER_ALLOW_FALLBACK,
+            'last_model_used': last_model_used,
+            'fallback_occurred': fallback_occurred,
+            'fallback_reason': fallback_reason,
+            'cache_hit_rate': round(cache_hit_rate, 3),
+            'cache_stats': cache_stats,
+            'endpoint_host': request.headers.get('Host', 'unknown')
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to get status: {str(e)}'}), 500
 
 @app.route('/cache/stats', methods=['GET'])
 def cache_stats():
@@ -318,7 +428,7 @@ if __name__ == '__main__':
         print("⚠️  Warning: Ollama runtime not available")
         print("   Make sure Ollama is running on http://localhost:11434")
         print("   Install with: curl -fsSL https://ollama.ai/install.sh | sh")
-        print("   Pull model with: ollama pull gpt-oss-20b")
+        print("   Pull model with: ollama pull gpt-oss:20b")
     else:
         print("✅ Ollama runtime connected")
     

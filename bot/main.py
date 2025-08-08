@@ -79,6 +79,7 @@ async def set_commands(bot):
         types.BotCommand(command="familyprofile", description="Family profile dashboard"),
         types.BotCommand(command="summondyad", description="List enabled Dyads"),
         types.BotCommand(command="feedback", description="Send feedback"),
+        types.BotCommand(command="reason_model", description="Show AI model status"),
         types.BotCommand(command="scheduler", description="Proactive scheduler status"),
         types.BotCommand(command="more", description="Show all legacy commands"),
         # Legacy commands (hidden but available)
@@ -130,12 +131,14 @@ async def main():
         from .handlers_family_link import router_family_link
         from .handlers_family_create import router_family_create
         from .handlers_commands import router_commands
+        from .handlers_reasoner_info import router_reasoner_info
         from .handlers_i18n import router_i18n
         dp.include_router(router_gate)  # Gate callbacks first
         dp.include_router(router_onboarding)  # Include first for state management
         dp.include_router(router_family_link)  # Family linking
         dp.include_router(router_family_create)  # Family creation
         dp.include_router(router_commands)  # New command handlers
+        dp.include_router(router_reasoner_info)  # Reasoner info commands
         dp.include_router(router_i18n)  # Include i18n router early
         dp.include_router(router_profile)
         dp.include_router(router_insights)

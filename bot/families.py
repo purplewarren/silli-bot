@@ -218,4 +218,8 @@ class FamiliesStore:
         """Legacy method - list all chat IDs."""
         with self._lock:
             data = self._read()
-            return data.get("legacy_chat_ids", []) 
+            return data.get("legacy_chat_ids", [])
+
+
+# Global instance
+families = FamiliesStore() 

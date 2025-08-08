@@ -21,7 +21,7 @@ class ReasonerConfig:
     base_url: str
     enabled: bool = False
     timeout_s: int = 8
-    model_hint: str = "gpt-oss-20b"
+    model_hint: str = "gpt-oss:20b"
     temperature: float = 0.2
 
 def clamp_metric_overrides(overrides: Dict[str, float]) -> Dict[str, float]:
@@ -195,7 +195,7 @@ def create_reasoner_config() -> ReasonerConfig:
         base_url=os.getenv('REASONER_BASE_URL', 'http://localhost:5001'),
         enabled=bool(os.getenv('REASONER_ENABLED', '0').lower() in ('1', 'true', 'yes', 'on')),
         timeout_s=int(os.getenv('REASONER_TIMEOUT', '8')),
-        model_hint=os.getenv('REASONER_MODEL_HINT', 'gpt-oss-20b'),
+        model_hint=os.getenv('REASONER_MODEL_HINT', 'gpt-oss:20b'),
         temperature=float(os.getenv('REASONER_TEMP', '0.2'))
     )
 

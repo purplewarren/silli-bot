@@ -1,118 +1,134 @@
 #!/bin/bash
+# QA Staging Script
+# Validates staging deployment with model validation
 
-# Staging QA Test Script
-# Usage: ./scripts/qa-staging.sh
+set -e  # Exit on any error
 
-set -e
+echo "🚀 Starting Staging QA Validation"
+echo "=================================="
 
-echo "🧪 Starting Silli Bot Staging QA Tests..."
+# Configuration
+REASONER_URL="http://localhost:5001"
+EXPECTED_MODEL="${REASONER_MODEL_HINT:-llama3.2:1b}"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# Test counter
-TESTS_PASSED=0
-TESTS_FAILED=0
-
-# Function to run test
-run_test() {
-    local test_name="$1"
-    local test_command="$2"
-    
-    echo -e "\n${YELLOW}Running: $test_name${NC}"
-    echo "Command: $test_command"
-    
-    if eval "$test_command"; then
-        echo -e "${GREEN}✅ PASS: $test_name${NC}"
-        ((TESTS_PASSED++))
-    else
-        echo -e "${RED}❌ FAIL: $test_name${NC}"
-        ((TESTS_FAILED++))
-    fi
-}
-
-# Check if services are running
-echo "🔍 Checking service status..."
-
-# Health check
-run_test "Health Check" "curl -f http://localhost/health"
-
-# Bot service check
-run_test "Bot Service" "docker ps | grep silli-bot-staging"
-
-# Reasoner service check
-run_test "Reasoner Service" "docker ps | grep silli-reasoner-staging"
-
-# Nginx service check
-run_test "Nginx Service" "docker ps | grep silli-nginx-staging"
-
-# Ollama models check
-echo -e "\n${YELLOW}Checking Ollama models...${NC}"
-if docker exec silli-reasoner-staging ollama list | grep -q "gpt-oss-20b\|llama3.2:3b"; then
-    echo -e "${GREEN}✅ Ollama models found${NC}"
-    ((TESTS_PASSED++))
-else
-    echo -e "${RED}❌ Ollama models not found${NC}"
-    echo "Pulling models..."
-    docker exec silli-reasoner-staging ollama pull gpt-oss-20b
-    docker exec silli-reasoner-staging ollama pull llama3.2:3b
-    ((TESTS_PASSED++))
-fi
-
-# Python tests
-echo -e "\n${YELLOW}Running Python tests...${NC}"
-run_test "Unit Tests" "python -m pytest tests/ -v --tb=short"
-
-# Reasoner smoke test
-echo -e "\n${YELLOW}Running reasoner smoke test...${NC}"
-run_test "Reasoner Smoke Test" "python qa/reasoner_smoke.py --cache-hit"
-
-# Manual test checklist
-echo -e "\n${YELLOW}Manual Test Checklist:${NC}"
-echo "Please complete these tests manually:"
-echo "1. New user onboarding flow:"
-echo "   - Start bot with /start"
-echo "   - Complete greeting card → Learn More → Road-show"
-echo "   - Create family profile (9 steps)"
-echo "   - Enable Dyads with consent"
-echo "   - Verify /help shows new commands"
-echo ""
-echo "2. Language switching:"
-echo "   - Use /lang pt_br"
-echo "   - Verify all text in Portuguese"
-echo "   - Switch back with /lang en"
-echo ""
-echo "3. Dyad functionality:"
-echo "   - Use /summondyad"
-echo "   - Launch Night Helper PWA"
-echo "   - Complete session and export JSON"
-echo "   - Verify data ingestion"
-echo ""
-echo "4. Proactive features:"
-echo "   - Check /scheduler status"
-echo "   - Test /reasoning toggle"
-echo "   - Verify /insights command"
+echo "📋 Configuration:"
+echo "  • Reasoner URL: $REASONER_URL"
+echo "  • Expected Model: $EXPECTED_MODEL"
 echo ""
 
-# Summary
-echo -e "\n${YELLOW}QA Test Summary:${NC}"
-echo "Tests Passed: $TESTS_PASSED"
-echo "Tests Failed: $TESTS_FAILED"
-echo "Total Tests: $((TESTS_PASSED + TESTS_FAILED))"
+# Preflight check: Verify model availability
+echo "🔍 Preflight Check: Model Availability"
+echo "--------------------------------------"
 
-if [ $TESTS_FAILED -eq 0 ]; then
-    echo -e "${GREEN}🎉 All automated tests passed!${NC}"
-    echo "Proceed with manual testing checklist above."
-else
-    echo -e "${RED}⚠️ Some tests failed. Please investigate before proceeding.${NC}"
+# Check if reasoner is responding
+if ! curl -s --max-time 5 "$REASONER_URL/health" > /dev/null; then
+    echo "❌ Reasoner health check failed"
     exit 1
 fi
 
-echo -e "\n${YELLOW}Next Steps:${NC}"
-echo "1. Complete manual test checklist"
-echo "2. Monitor logs: docker-compose -f docker-compose.staging.yml logs -f"
-echo "3. Collect pilot user feedback"
-echo "4. Prepare GO/NO-GO decision"
+# Check if expected model is available
+MODELS_RESPONSE=$(curl -s --max-time 10 "$REASONER_URL/models")
+if [ $? -ne 0 ]; then
+    echo "❌ Failed to get models from reasoner"
+    exit 1
+fi
+
+# Extract model names from JSON response
+MODEL_NAMES=$(echo "$MODELS_RESPONSE" | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    models = data.get('models', [])
+    names = [model.get('name', '') for model in models]
+    print(' '.join(names))
+except:
+    print('')
+")
+
+if [ -z "$MODEL_NAMES" ]; then
+    echo "❌ No models found in reasoner response"
+    echo "Response: $MODELS_RESPONSE"
+    exit 1
+fi
+
+echo "📋 Available models: $MODEL_NAMES"
+
+# Check if expected model is in the list
+if echo "$MODEL_NAMES" | grep -q "$EXPECTED_MODEL"; then
+    echo "✅ Expected model '$EXPECTED_MODEL' is available"
+else
+    echo "❌ Expected model '$EXPECTED_MODEL' is NOT available"
+    echo "Available models: $MODEL_NAMES"
+    exit 1
+fi
+
+echo ""
+
+# Run smoke tests with strict model validation
+echo "🧪 Running Smoke Tests (Strict Mode)"
+echo "------------------------------------"
+
+# Set environment for strict testing
+export REASONER_ALLOW_FALLBACK=0
+
+# Run smoke test with expected model
+if python3 qa/reasoner_smoke.py --expect-model gpt-oss:20b; then
+    echo "✅ Smoke tests passed"
+else
+    echo "❌ Smoke tests failed"
+    exit 1
+fi
+
+echo ""
+
+# Test reasoner status endpoint
+echo "📊 Testing Reasoner Status Endpoint"
+echo "-----------------------------------"
+
+STATUS_RESPONSE=$(curl -s --max-time 10 "$REASONER_URL/status")
+if [ $? -ne 0 ]; then
+    echo "❌ Failed to get reasoner status"
+    exit 1
+fi
+
+# Validate status response
+echo "$STATUS_RESPONSE" | python3 -c "
+import json, sys, os
+try:
+    data = json.load(sys.stdin)
+    expected_model = os.environ.get('REASONER_MODEL_HINT', 'llama3.2:1b')
+    
+    # Check required fields
+    required_fields = ['enabled', 'model_hint', 'allow_fallback', 'last_model_used', 'cache_hit_rate']
+    for field in required_fields:
+        if field not in data:
+            print(f'❌ Missing required field: {field}')
+            sys.exit(1)
+    
+    # Validate model hint
+    if data['model_hint'] != expected_model:
+        print(f'❌ Model hint mismatch: expected {expected_model}, got {data[\"model_hint\"]}')
+        sys.exit(1)
+    
+    # Validate fallback setting
+    if data['allow_fallback'] != False:
+        print(f'❌ Fallback should be disabled in staging, got {data[\"allow_fallback\"]}')
+        sys.exit(1)
+    
+    print('✅ Status endpoint validation passed')
+    print(f'  • Model hint: {data[\"model_hint\"]}')
+    print(f'  • Allow fallback: {data[\"allow_fallback\"]}')
+    print(f'  • Cache hit rate: {data[\"cache_hit_rate\"]}')
+    
+except Exception as e:
+    print(f'❌ Status validation failed: {e}')
+    sys.exit(1)
+"
+
+if [ $? -ne 0 ]; then
+    exit 1
+fi
+
+echo ""
+echo "🎉 All QA checks passed!"
+echo "✅ Staging deployment is ready for pilot testing"

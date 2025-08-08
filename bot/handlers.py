@@ -424,8 +424,8 @@ async def help_command(message: Message):
             "Use /more para ver comandos avançados."
         )
     else:
-        help_text = (
-            "✨ Silli AI — Your Parenting Companion\n\n"
+    help_text = (
+        "✨ Silli AI — Your Parenting Companion\n\n"
             "**Core Commands:**\n"
             "• /start — start onboarding\n"
             "• /help — show this message\n"
@@ -534,7 +534,7 @@ async def check_onboarding_complete(message: Message) -> bool:
         profile = await profiles.get_profile_by_chat(message.chat.id)
         
         if not profile or not profile.get("complete", False):
-            await message.reply(
+        await message.reply(
                 "🔐 Please complete onboarding first. Type /start to begin."
             )
             return False
@@ -1514,6 +1514,10 @@ async def reason_stats_command(message: Message):
         calls_with_tips = sum(1 for call in reasoner_calls if call['tips'] > 0)
         avg_tips = sum(call['tips'] for call in reasoner_calls) / total_calls
         
+        # Check model consistency (for staging)
+        expected_model = os.getenv('REASONER_MODEL_HINT', 'unknown')
+        model_consistency = "100% required on staging" if expected_model == 'gpt-oss:20b' else "Not enforced"
+        
         # Build report
         report_lines = []
         report_lines.append("🤖 **Reasoner Statistics (Last 50 Calls)**")
@@ -1535,6 +1539,8 @@ async def reason_stats_command(message: Message):
         report_lines.append(f"🎯 **By Dyad:**")
         for dyad, count in sorted(dyad_counts.items()):
             report_lines.append(f"• {dyad}: {count} calls")
+        report_lines.append("")
+        report_lines.append(f"🔧 **Model Consistency:** {model_consistency}")
         
         await message.reply("\n".join(report_lines))
         

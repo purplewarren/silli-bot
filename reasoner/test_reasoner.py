@@ -194,7 +194,7 @@ def main():
     if not ollama_connected:
         print("\n⚠️  Ollama not connected. Some tests may fail.")
         print("   Make sure Ollama is running: ollama serve")
-        print("   Install model: ollama pull gpt-oss-20b")
+        print("   Install model: ollama pull gpt-oss:20b")
     
     # Test models
     models_available = test_models()

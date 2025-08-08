@@ -26,7 +26,7 @@ curl -fsSL https://ollama.ai/install.sh | sh
 
 ```bash
 # Pull the recommended model
-ollama pull gpt-oss-20b
+ollama pull gpt-oss:20b
 
 # Or use a smaller model for faster inference
 ollama pull llama3.2:3b
@@ -153,7 +153,7 @@ curl -X POST http://localhost:5001/v1/reason \
 
 ### Model Configuration
 
-The reasoner uses `gpt-oss-20b` by default. To use a different model:
+The reasoner uses `gpt-oss:20b` by default. To use a different model:
 
 1. Update the model name in `app.py`:
 ```python
@@ -219,7 +219,7 @@ The reasoner automatically redacts PII fields:
 ## Performance
 
 ### Expected Response Times
-- **gpt-oss-20b**: 3-6 seconds
+- **gpt-oss:20b**: 3-6 seconds
 - **llama3.2:3b**: 1-3 seconds
 - **llama3.2:1b**: 0.5-2 seconds
 
@@ -241,9 +241,9 @@ Error: Ollama runtime not available
 
 #### Model Not Found
 ```
-Error: Model 'gpt-oss-20b' not found
+Error: Model 'gpt-oss:20b' not found
 ```
-**Solution**: Pull the model with `ollama pull gpt-oss-20b`
+**Solution**: Pull the model with `ollama pull gpt-oss:20b`
 
 #### Slow Response Times
 **Solutions**:

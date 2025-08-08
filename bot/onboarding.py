@@ -238,7 +238,7 @@ async def save_family_name(message: Message, state: FSMContext):
         
         logger.info(f"Family created: {family_name} for {family_id}")
         
-    except Exception as e:
+        except Exception as e:
         logger.error(f"Error in save family name: {e}")
         logger.error(f"Exception details: {type(e).__name__}: {str(e)}")
         await message.reply("Sorry, something went wrong. Please try again.")
@@ -317,7 +317,7 @@ async def cancel_onboarding(message: Message, state: FSMContext):
     try:
         family_id = f"fam_{message.chat.id}"
         
-        await state.clear()
+    await state.clear()
         await message.reply(
             "Onboarding cancelled. Type /start to begin again."
         )

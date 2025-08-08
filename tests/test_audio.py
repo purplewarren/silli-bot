@@ -11,7 +11,7 @@ import soundfile as sf
 sys.path.append(str(Path(__file__).parent.parent))
 
 from bot.analysis_audio import extract_features
-from bot.scoring import score_and_tips
+from bot.scoring import wind_down_scorer
 
 
 def create_test_wav():
@@ -79,7 +79,7 @@ def test_score_and_tips(features):
     
     try:
         # Calculate score and tips
-        score, badges, tips, suggestion_id = score_and_tips(features)
+        score, badges, tips = wind_down_scorer.score_and_tips(features)
         
         # Check score range
         assert 0 <= score <= 100, f"Score out of range: {score}"
@@ -88,13 +88,11 @@ def test_score_and_tips(features):
         assert isinstance(badges, list), "Badges should be a list"
         assert isinstance(tips, list), "Tips should be a list"
         assert len(tips) > 0, "Should have at least one tip"
-        assert isinstance(suggestion_id, str), "Suggestion ID should be a string"
         
         print(f"✅ Score and tips generated successfully:")
         print(f"   Score: {score}/100")
         print(f"   Badges: {badges}")
         print(f"   Tips: {tips}")
-        print(f"   Suggestion ID: {suggestion_id}")
         
         return True
         

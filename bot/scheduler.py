@@ -11,7 +11,7 @@ from loguru import logger
 from .profiles import profiles
 from .families import families
 from .storage import storage
-from .reason_client import create_reasoner_config, get_reasoner_response
+from .reason_client import create_reasoner_config, get_reasoning_insights
 from .i18n import get_locale
 
 
@@ -196,9 +196,12 @@ class ProactiveScheduler:
             
             # Get reasoner response
             reasoner_config = create_reasoner_config()
-            response = await get_reasoner_response(
-                prompt=prompt,
+            response = await get_reasoning_insights(
+                dyad="proactive",
+                features={},
                 context=sanitized_context,
+                metrics={},
+                history=[],
                 config=reasoner_config
             )
             

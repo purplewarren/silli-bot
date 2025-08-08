@@ -6,7 +6,7 @@ services:
     container_name: silli-bot-staging
     restart: unless-stopped
     environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN_STAGING}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - REASONER_ENABLED=1
       - PWA_HOST=https://staging.silli.ai
       - DYAD_REGISTRY_PATH=dyads/dyads.yaml
@@ -16,23 +16,26 @@ services:
       - ./logs:/app/logs
     ports:
       - "8000:8000"
-    depends_on:
-      - reasoner
+    # Note: Reasoner is external - no dependency needed
     networks:
       - silli-network
 
-  reasoner:
+  ollama:
     image: ollama/ollama:latest
-    container_name: silli-reasoner-staging
+    container_name: silli-ollama-staging
     restart: unless-stopped
     ports:
-      - "5001:11434"
+      - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0
     networks:
       - silli-network
+
+  # Note: Reasoner is now external - see ops/reasoner-node.md for setup
+  # The reasoner service runs on a separate machine with gpt-oss:20b
+  # REASONER_BASE_URL should be set to the external reasoner URL
 
   nginx:
     image: nginx:alpine

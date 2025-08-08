@@ -92,7 +92,7 @@ async def reason_status_command(message: Message):
     # Check global and family settings
     global_enabled = os.getenv('REASONER_ENABLED', '0').lower() in ('1', 'true', 'yes')
     family_enabled = profile.cloud_reasoning
-    model_hint = os.getenv('REASONER_MODEL_HINT', 'gpt-oss-20b')
+    model_hint = os.getenv('REASONER_MODEL_HINT', 'gpt-oss:20b')
     
     # Determine effective status
     effective_enabled = global_enabled and family_enabled
