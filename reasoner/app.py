@@ -18,8 +18,19 @@ from cache import ReasonerCache
 app = Flask(__name__)
 
 # Configuration from environment
-REASONER_MODEL_HINT = os.getenv('REASONER_MODEL_HINT', 'llama3.2:1b')
+REASONER_MODEL_HINT = os.getenv('REASONER_MODEL_HINT', 'gpt-oss:20b')
 REASONER_ALLOW_FALLBACK = os.getenv('REASONER_ALLOW_FALLBACK', '1').lower() in ('1', 'true', 'yes')
+
+def choose_model(req_json: dict) -> str:
+    """Choose model by priority:
+    1. JSON body field "model" if provided and non-empty
+    2. REASONER_MODEL env
+    3. REASONER_MODEL_HINT env
+    4. default "gpt-oss:20b"
+    """
+    cand = (req_json or {}).get("model") or os.getenv("REASONER_MODEL") \
+           or os.getenv("REASONER_MODEL_HINT") or "gpt-oss:20b"
+    return cand.strip()
 
 # Initialize Ollama client
 ollama_client = OllamaClient()
@@ -233,21 +244,20 @@ def reason():
         if reasoning_request.dyad not in ['night', 'tantrum', 'meal']:
             return jsonify({'error': 'Invalid dyad. Must be night, tantrum, or meal'}), 400
         
-        # Determine which model to use
-        model_to_use, is_fallback, model_fallback_reason = determine_model_to_use()
+        # Choose model using new priority system
+        model_to_use = choose_model(request_json)
         
-        # If no model available and fallback disabled, return 503
-        if model_to_use is None:
-            if not REASONER_ALLOW_FALLBACK:
-                return jsonify({
-                    'error': 'model_unavailable',
-                    'hint': REASONER_MODEL_HINT,
-                    'reason': model_fallback_reason
-                }), 503
-            else:
-                return jsonify({
-                    'error': f'No models available: {model_fallback_reason}'
-                }), 503
+        # Log model selection
+        print(f"reasoner_request dyad={reasoning_request.dyad} model_used={model_to_use} model_hint={REASONER_MODEL_HINT} fallback={0 if model_to_use == REASONER_MODEL_HINT else 1}")
+        
+        # Check if model is available (optional validation)
+        try:
+            available_models = ollama_client.list_models()
+            available_model_names = [model.get('name', '') for model in available_models]
+            if model_to_use not in available_model_names:
+                print(f"⚠️ Warning: Model {model_to_use} not in available models: {available_model_names}")
+        except Exception as e:
+            print(f"⚠️ Warning: Could not verify model availability: {e}")
         
         # Check cache first (if enabled)
         cache_hit = False
@@ -391,15 +401,10 @@ def reasoner_status():
             cache_hit_rate = cache_stats['hits'] / (cache_stats['hits'] + cache_stats['misses'])
         
         return jsonify({
-            'enabled': True,
             'model_hint': REASONER_MODEL_HINT,
+            'model_used': last_model_used or 'unknown',
             'allow_fallback': REASONER_ALLOW_FALLBACK,
-            'last_model_used': last_model_used,
-            'fallback_occurred': fallback_occurred,
-            'fallback_reason': fallback_reason,
-            'cache_hit_rate': round(cache_hit_rate, 3),
-            'cache_stats': cache_stats,
-            'endpoint_host': request.headers.get('Host', 'unknown')
+            'cache': cache_stats
         })
     except Exception as e:
         return jsonify({'error': f'Failed to get status: {str(e)}'}), 500
@@ -423,6 +428,11 @@ def clear_cache():
         return jsonify({'error': f'Failed to clear cache: {str(e)}'}), 500
 
 if __name__ == '__main__':
+    # Log startup configuration
+    print(f"🚀 Silli Reasoner starting up...")
+    print(f"   model_hint={REASONER_MODEL_HINT}")
+    print(f"   allow_fallback={REASONER_ALLOW_FALLBACK}")
+    
     # Check Ollama availability on startup
     if not ollama_client.health_check():
         print("⚠️  Warning: Ollama runtime not available")
