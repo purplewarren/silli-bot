@@ -39,23 +39,36 @@ class Storage:
         
         logger.info(f"Initialized sessions CSV: {self.sessions_file}")
     
+    def _to_jsonable(self, x):
+        """Safe serialization helper to prevent model_dump crashes."""
+        if hasattr(x, "model_dump"):  # pydantic v2
+            return x.model_dump()
+        if hasattr(x, "dict"):        # pydantic v1
+            return x.dict()
+        if isinstance(x, (list, tuple)):
+            return [self._to_jsonable(i) for i in x]
+        if isinstance(x, dict):
+            return {k: self._to_jsonable(v) for k, v in x.items()}
+        return x
+
     def append_event(self, event: EventRecord) -> None:
         """Append event to JSONL file with safe writing."""
         try:
-            # Convert to dict and handle datetime serialization
-            event_dict = event.model_dump()
-            event_dict['ts'] = event_dict['ts'].isoformat()
+            # Convert to dict and handle datetime serialization with safe handling
+            event_dict = self._to_jsonable(event)
+            if 'ts' in event_dict and hasattr(event_dict['ts'], 'isoformat'):
+                event_dict['ts'] = event_dict['ts'].isoformat()
             
             # Append to JSONL file
             with open(self.events_file, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(event_dict) + '\n')
                 f.flush()  # Ensure immediate write
             
-            logger.info(f"Appended event: {event.event} for family {event.family_id}")
+            logger.info(f"Appended event: {event_dict.get('event', 'unknown')} for family {event_dict.get('family_id', 'unknown')}")
             
         except Exception as e:
             logger.error(f"Failed to append event: {e}")
-            raise
+            # Don't raise in safe mode to prevent crashes
     
     def rollup_session(self, session_record: SessionRecord) -> None:
         """Roll up session data to CSV (stub implementation)."""

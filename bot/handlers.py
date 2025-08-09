@@ -24,7 +24,7 @@ from .wt_utils import (
     get_env,
 )
 from .families import FamiliesStore
-from .reason_client import create_reasoner_config, ReasonClient, ReasonerUnavailable, clamp_metric_overrides, truncate_tips
+from .reason_client import client
 from .dyad_registry import dyad_registry
 from .utils import convert_pwa_to_bot_format, extract_dyad_label
 from .profiles import profiles
@@ -402,48 +402,47 @@ async def dyads_command(message: Message):
 
 @router.message(Command("help"))
 async def help_command(message: Message):
+    """Show clean, organized command help."""
+    from .utils.text import b
+    
     locale = get_locale(message.chat.id)
     
     if locale == "pt_br":
         help_text = (
-            "✨ Silli AI — Seu Companheiro de Paternidade\n\n"
-            "**Comandos Principais:**\n"
+            f"✨ {b('Silli')} — Seu Companheiro de Paternidade\n\n"
+            f"{b('Comandos Principais:')}\n"
             "• /start — iniciar onboarding\n"
-            "• /help — mostrar esta mensagem\n"
-            "• /lang — alterar idioma (en/pt_br)\n"
-            "• /about — re-executar apresentação\n"
-            "• /insights — ver insights recentes\n"
-            "• /reasoning — ativar/desativar IA\n"
-            "• /familyprofile — perfil da família\n"
-            "• /summondyad — listar Dyads ativos\n"
+            "• /familyprofile — painel da família\n"
+            "• /summondyad — abrir ajudantes\n"
+            "• /reasoning — ativar/desativar IA\n\n"
+            f"{b('Outros:')}\n"
+            "• /lang — alterar idioma\n"
+            "• /about — apresentação do Silli\n"
+            "• /insights — insights recentes\n"
             "• /feedback — enviar feedback\n"
-            "• /scheduler — status do agendador\n"
-            "• /more — ver todos os comandos\n\n"
-            "**Como Usar:**\n"
-            "Digite naturalmente — Vou sugerir um ajudante se puder.\n"
-            "Use /more para ver comandos avançados."
+            "• /more — todos os comandos\n\n"
+            f"{b('Como Usar:')}\n"
+            "Digite naturalmente ou use os comandos acima."
         )
     else:
-    help_text = (
-        "✨ Silli AI — Your Parenting Companion\n\n"
-            "**Core Commands:**\n"
-            "• /start — start onboarding\n"
-            "• /help — show this message\n"
-            "• /lang — change language (en/pt_br)\n"
-            "• /about — re-run introduction\n"
-            "• /insights — view recent insights\n"
-            "• /reasoning — toggle AI on/off\n"
-            "• /familyprofile — family profile\n"
-            "• /summondyad — list active Dyads\n"
+        help_text = (
+            f"✨ {b('Silli')} — Your Parenting Companion\n\n"
+            f"{b('Core Commands:')}\n"
+            "• /start — begin onboarding\n"
+            "• /familyprofile — family dashboard\n"
+            "• /summondyad — launch helpers\n"
+            "• /reasoning — toggle AI\n\n"
+            f"{b('Other:')}\n"
+            "• /lang — change language\n"
+            "• /about — Silli introduction\n"
+            "• /insights — recent insights\n"
             "• /feedback — send feedback\n"
-            "• /scheduler — scheduler status\n"
-            "• /more — see all commands\n\n"
-            "**How to Use:**\n"
-            "Type naturally — I'll suggest a helper if I can.\n"
-            "Use /more to see advanced commands."
+            "• /more — all commands\n\n"
+            f"{b('How to Use:')}\n"
+            "Type naturally or use commands above."
         )
     
-    await message.reply(help_text, parse_mode="Markdown")
+    await message.reply(help_text)
 
 
 @router.message(Command("version"))
@@ -497,7 +496,7 @@ from .wt_utils import (
     get_env,
 )
 from .families import FamiliesStore
-from .reason_client import create_reasoner_config, ReasonClient, ReasonerUnavailable, clamp_metric_overrides, truncate_tips
+from .reason_client import client
 from .dyad_registry import dyad_registry
 from .utils import convert_pwa_to_bot_format, extract_dyad_label
 from .profiles import profiles
@@ -534,7 +533,7 @@ async def check_onboarding_complete(message: Message) -> bool:
         profile = await profiles.get_profile_by_chat(message.chat.id)
         
         if not profile or not profile.get("complete", False):
-        await message.reply(
+            await message.reply(
                 "🔐 Please complete onboarding first. Type /start to begin."
             )
             return False
@@ -968,7 +967,7 @@ async def handle_voice(message: Message):
         LAST_SESSION[family_id] = session_id
         
         # Call reasoner for night dyad if enabled
-        cfg = create_reasoner_config()
+        # cfg = create_reasoner_config()  # TODO: Update to new client
         rsp = None
         if await is_reasoner_effectively_enabled(family_id) and cfg.base_url:
             try:
@@ -1122,47 +1121,234 @@ def classify_trigger(text: str) -> str:
 
 @router.message(F.text & ~F.text.startswith("/"))
 async def handle_text(message: Message):
-    """Handle text messages for natural language Dyad triggers."""
+    """Handle text messages - requires family profile and respects AI settings."""
     try:
-        family_id = f"fam_{message.chat.id}"
-        text = message.text.lower().strip()
+        from .families import families
+        # Using new simplified reasoner client
+        from .utils.text import b
+        from .i18n import get_locale, t
+        from .profiles import profiles
+        
+        chat_id = message.chat.id
+        family_id = f"fam_{chat_id}"
+        text = message.text.strip()
+        locale = get_locale(chat_id)
         
         logger.info(f"Received text message: '{text}' from family {family_id}")
         
-        # Classify trigger
+        # STRICT GATING: Check user profile status first
+        profile = profiles.get_profile_by_chat_sync(chat_id)
+        if not profile or profile.get("status") != "active":
+            # User not properly onboarded - ALWAYS direct to family setup
+            if locale == "pt_br":
+                await message.reply(
+                    "👋 Olá! Para usar o Silli, você precisa pertencer a um perfil familiar.\n\n"
+                    "Use /start para criar ou juntar-se a uma família."
+                )
+            else:
+                await message.reply(
+                    "👋 Hi! To use Silli, you need to belong to a family profile.\n\n"
+                    "Use /start to create or join a family."
+                )
+            return
+        
+        # Get family profile using the family_id from profile (not constructed from chat_id)
+        actual_family_id = profile.get("family_id", family_id)
+        family = families.get_family(actual_family_id)
+        if not family:
+            # Edge case: active profile but no family data
+            await message.reply(t(locale, "err_status"))
+            return
+        
+        # Check if AI reasoning is enabled for this family
+        if not getattr(family, 'cloud_reasoning', False):
+            # AI is OFF - provide command-based guidance only
+            from .strings import COPY
+            if locale == "pt_br":
+                await message.reply(
+                    f"💡 Para conversar naturalmente com ME, ative em /reasoning.\n\n"
+                    "Por enquanto, use:\n"
+                    "• /summondyad — para abrir ajudantes\n"
+                    "• /familyprofile — para configurar família\n"
+                    "• /help — para ver todos os comandos",
+                    parse_mode="HTML"
+                )
+            else:
+                await message.reply(
+                    COPY["ai_disabled"],
+                    parse_mode="HTML"
+                )
+            return
+        
+        # AI is enabled - use intelligent parenting-focused conversation
+        try:
+            from .reason_client import client as reasoner
+            
+            # Import UI helpers, cache, strings, and metrics
+            from .ui import send_thinking, render_tipset
+            from .reason_cache import cache
+            from .strings import COPY, BRAND_NAME
+            from .metrics import metrics
+            
+            # Classify the topic to choose appropriate dyad
+            inferred_dyad = "meal"  # Default
+            text_lower = text.lower()
+            if any(word in text_lower for word in ["sleep", "nap", "bedtime", "wake", "night"]):
+                inferred_dyad = "night"
+            elif any(word in text_lower for word in ["tantrum", "cry", "angry", "upset", "meltdown"]):
+                inferred_dyad = "tantrum"
+            elif any(word in text_lower for word in ["eat", "food", "meal", "vegetable", "snack"]):
+                inferred_dyad = "meal"
+            
+            logger.info(f"🤖 Calling ME with dyad: {inferred_dyad}, text: {text}")
+            
+            # Show typing indicator while ME is thinking
+            await send_thinking(message.bot, message.chat.id)
+            
+            payload = {
+                "dyad": inferred_dyad,
+                "features": {"user_input": text, "conversation": True},
+                "context": {"source": "chat", "lang": locale},
+                "metrics": {},
+                "history": []
+            }
+            
+            # Check cache first
+            ai_response = cache.get(payload)
+            if ai_response:
+                logger.info(f"🤖 ME response (cached): {ai_response}")
+                # Cache hits are instant, record as 0ms success
+                metrics.observe(True, 0)
+            else:
+                # Measure AI call latency
+                import time
+                t0 = time.time()
+                ai_response = reasoner.reason(payload)
+                t1 = time.time()
+                latency_ms = int(1000 * (t1 - t0))
+                
+                logger.info(f"🤖 ME response: {ai_response}")
+                
+                # Record metrics: success if no error, with actual latency
+                is_success = "error" not in ai_response
+                metrics.observe(is_success, latency_ms)
+                logger.debug(f"📊 ME call: success={is_success}, latency={latency_ms}ms")
+            
+            if "error" in ai_response:
+                # Log the error for debugging
+                logger.warning(f"🤖 ME error: {ai_response}")
+                
+                # Handle different error types
+                error_type = ai_response.get("error", "")
+                if error_type in ["unavailable", "failed_after_retries"]:
+                    # Circuit breaker or retry exhaustion - ask user to wait
+                    await message.answer(COPY["circuit_open"], parse_mode="HTML")
+                    return
+                elif "timeout" in error_type:
+                    # For timeout errors, provide a helpful response based on the input
+                    text_lower = text.lower()
+                    
+                    if any(word in text_lower for word in ["what is", "who is", "about", "silli", "me"]):
+                        fallback_response = (
+                            f"<b>About {BRAND_NAME}</b>\n\n"
+                            "I'm your AI parenting companion powered by a 20-billion parameter model! "
+                            "I help with:\n"
+                            "• Sleep challenges\n"
+                            "• Mealtime struggles\n" 
+                            "• Behavioral guidance\n"
+                            "• Evidence-based parenting tips\n\n"
+                            "Try asking me specific questions like 'help with bedtime' or 'picky eater tips'!"
+                        )
+                    elif any(word in text_lower for word in ["sleep", "bedtime", "nap"]):
+                        fallback_response = (
+                            "<b>Sleep Tips</b>\n\n"
+                            "Here are some proven strategies:\n"
+                            "• Consistent bedtime routine\n"
+                            "• Dark, cool environment\n"
+                            "• Limit screens before bed\n"
+                            "• Comfort objects help\n\n"
+                            "Try /summondyad for our Night Helper!"
+                        )
+                    elif any(word in text_lower for word in ["food", "eat", "meal", "hungry"]):
+                        fallback_response = (
+                            "<b>Mealtime Tips</b>\n\n"
+                            "Try these approaches:\n"
+                            "• Offer choices between healthy options\n"
+                            "• Make meals fun and pressure-free\n"
+                            "• Model good eating habits\n"
+                            "• Small portions, praise attempts\n\n"
+                            "Check out /summondyad for Meal Mood Companion!"
+                        )
+                    else:
+                        fallback_response = (
+                            "<b>I'm here to help!</b>\n\n"
+                            "While I process your question, try asking about:\n"
+                            "• Sleep and bedtime issues\n"
+                            "• Mealtime challenges\n"
+                            "• Behavioral guidance\n\n"
+                            "Or use /summondyad to explore our specialized helpers!"
+                        )
+                else:
+                    fallback_response = COPY["error_fallback"]
+                
+                await message.answer(fallback_response, parse_mode="HTML")
+                return
+            else:
+                # Cache successful response if it wasn't already cached
+                if not cache.get(payload):
+                    cache.set(payload, ai_response)
+                    logger.debug(f"🗄️ Cached ME response for payload hash")
+                
+                # Use centralized formatting for all AI responses
+                html_msg = render_tipset(ai_response.get("tips"), ai_response.get("rationale"), ai_response.get("model_used"))
+                
+                logger.info(f"🤖 Sending ME response: {html_msg}")
+                await message.answer(html_msg, parse_mode="HTML")
+                
+                # Log successful AI conversation
+                event = EventRecord(
+                    ts=datetime.now(),
+                    family_id=family_id,
+                    session_id=f"{family_id}_conversation_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                    phase="ai_conversation",
+                    actor="parent",
+                    event="ai_chat",
+                    labels=["ai_enabled", "conversation", f"dyad:{inferred_dyad}", f"model:{used}"]
+                )
+                storage.append_event(event)
+                return
+
+                
+        except Exception as ai_error:
+            logger.error(f"AI conversation failed: {ai_error}")
+            # Fall back to simple pattern matching
+        
+        # Fallback to open conversation when AI fails
+        # Be more conversational and guide users naturally to dyads
         dyad = classify_trigger(text)
         if dyad and dyad in ["night", "tantrum", "meal"]:
-            await message.reply(
-                "Got it. Open a helper:",
-                reply_markup=_dyad_kb()
-            )
-            
-            # Log dyad trigger
-            event = EventRecord(
-                ts=datetime.now(),
-                family_id=family_id,
-                session_id=f"{family_id}_{dyad}_trigger_{datetime.now().strftime('%Y%m%d_%H%M')}",
-                phase="dyad_trigger",
-                actor="parent",
-                event=f"{dyad}_triggered",
-                labels=[f"dyad:{dyad}", "natural_language"]
-            )
-            storage.append_event(event)
-            return
-            
-        # Unrecognized input - Silli's learning response
-        await message.reply(
-            "I'm still learning. That moment matters, but I don't yet know how to help with it.\n\n"
-            "For now, I can support sleep, tantrums, and meals.\n\n"
-            "Try:\n"
-            "• /night_helper - for bedtime challenges\n"
-            "• /tantrum_translator - for meltdowns\n"
-            "• /meal_mood - for feeding struggles"
-        )
+            if dyad == "night":
+                fallback_response = "Sleep challenges can be tough! 😴 Every child is different, but having a consistent bedtime routine often helps. Would you like to try our Night Helper for personalized sleep tips? Use /summondyad to get started."
+            elif dyad == "tantrum":
+                fallback_response = "Tantrums are a normal part of development! 🤗 They often happen when little ones feel overwhelmed or can't express their needs. Our Tantrum Translator can help you understand what's behind the behavior. Check it out with /summondyad!"
+            elif dyad == "meal":
+                fallback_response = "Mealtime can be challenging! 🍽️ Many families struggle with picky eating or food battles. Our Meal Mood Companion offers gentle strategies to make mealtimes more enjoyable for everyone. Try /summondyad to explore it!"
+            await message.reply(fallback_response)
+        else:
+            # Open conversation response - acknowledge and guide gently
+            open_responses = [
+                "I'm here to support you with parenting challenges! 🌟 Whether it's sleep struggles, challenging behaviors, or mealtime stress - I'm designed to help with the everyday moments that matter most. What's on your mind today?",
+                "Thanks for chatting with me! 😊 I specialize in helping parents navigate sleep, behavior, and feeding challenges. These are often the areas where families need the most support. Is there something specific you'd like to talk about?",
+                "I love connecting with parents! 💙 My purpose is to make parenting a bit easier by offering guidance on common challenges like sleep issues, tantrums, and mealtime struggles. What would be most helpful for your family right now?"
+            ]
+            import random
+            await message.reply(random.choice(open_responses))
             
     except Exception as e:
         logger.error(f"Error handling text message: {e}")
-        await message.reply("Sorry, something went wrong. Please try again.") 
+        locale = get_locale(message.chat.id) if hasattr(message, 'chat') else "en"
+        error_text = t(locale, "err_status")
+        await message.reply(error_text) 
 
 # /ingest command handler
 @router.message(Command("ingest"))
@@ -1256,7 +1442,7 @@ async def ingest_json_handler(message: Message):
         }
         
         # Call reasoner if enabled
-        cfg = create_reasoner_config()
+        # cfg = create_reasoner_config()  # TODO: Update to new client
         rsp = None
         cache_status = "N/A"
         if await is_reasoner_effectively_enabled(report.family_id) and cfg.base_url:

@@ -81,7 +81,7 @@ async def handle_dyad_toggle(callback: CallbackQuery):
     
     # Toggle the dyad
     try:
-        family = await families.get_family(family_id)
+        family = families.get_family(family_id)
         if not family:
             await callback.answer("❌ Family not found")
             return
@@ -233,7 +233,7 @@ async def handle_dyad_consent(callback: CallbackQuery):
     family_id = profile["family_id"]
     
     try:
-        family = await families.get_family(family_id)
+        family = families.get_family(family_id)
         if not family:
             if locale == "pt_br":
                 await callback.message.edit_text("❌ Família não encontrada.")

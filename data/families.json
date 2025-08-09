@@ -1,1 +1,44 @@
-[2130406580]
+{
+  "Family #000001": {
+    "family_id": "Family #000001",
+    "creator_chat_id": 2130406580,
+    "members": [
+      2130406580
+    ],
+    "parent_name": "Rodrigo Barakat",
+    "children": [
+      {
+        "name": "Amelie",
+        "sex": "f",
+        "age_years": 8.0,
+        "health_notes": "No"
+      }
+    ],
+    "lifestyle_tags": [
+      "travel",
+      "reading",
+      "arts",
+      "games"
+    ],
+    "enabled_dyads": [
+      "meal_mood",
+      "tantrum_translator",
+      "night_helper"
+    ],
+    "status": "active",
+    "created_at": "2025-08-08 17:11:17.728669",
+    "updated_at": "2025-08-09T16:10:28.235183",
+    "cloud_reasoning": true,
+    "consents": {
+      "ai_20b": {
+        "accepted": true,
+        "ts": "2025-08-08T23:10:54.214617"
+      },
+      "meal_mood": {
+        "accepted": true,
+        "ts": "2025-08-08T19:35:02.015593"
+      }
+    },
+    "old_family_id": "Family #000001"
+  }
+}

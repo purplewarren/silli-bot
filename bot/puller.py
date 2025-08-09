@@ -32,6 +32,11 @@ async def pull_for_chat(sess: aiohttp.ClientSession, bot, chat_id: int, limit: i
             return -1
         data = await r.json()
 
+    # Safety check: ensure data is a dictionary
+    if not isinstance(data, dict):
+        logger.warning(f"Relay returned non-dict data: {type(data)}")
+        return 0
+
     items = data.get("items", [])
     count = 0
     for item in items:
@@ -120,6 +125,9 @@ async def start_pull_loop(bot):
 
         except Exception as e:
             logger.error(f"Pull loop error: {e}")
+            logger.error(f"Pull loop error type: {type(e)}")
+            import traceback
+            logger.error(f"Pull loop error traceback: {traceback.format_exc()}")
             consecutive_failures += 1
 
         await asyncio.sleep(PULL_INTERVAL) 

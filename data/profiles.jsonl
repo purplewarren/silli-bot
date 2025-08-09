@@ -12,3 +12,5 @@
 {"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"complete": true}, "ts": "2025-08-07T13:01:55.434212"}
 {"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"cloud_reasoning": false}, "ts": "2025-08-07T14:30:21.693444"}
 {"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"cloud_reasoning": true}, "ts": "2025-08-07T14:30:31.793923"}
+{"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"family_id": "fam_2130406580_20250808_171117", "status": "active"}, "ts": "2025-08-08T17:11:17.735215"}
+{"type": "SET_FIELDS", "family_id": "fam_2130406580", "payload": {"family_id": "Family #000001", "old_family_id": "fam_2130406580_20250808_171117"}, "ts": "2025-08-08T23:24:04.239125"}

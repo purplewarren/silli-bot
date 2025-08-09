@@ -11,7 +11,7 @@ from loguru import logger
 from .profiles import profiles
 from .families import families
 from .storage import storage
-from .reason_client import create_reasoner_config, get_reasoning_insights
+from .reason_client import client
 from .i18n import get_locale
 
 
@@ -64,6 +64,11 @@ class ProactiveScheduler:
             # Get all families from storage
             all_families = []
             families_data = families._read()
+            
+            # Safety check: ensure families_data is a dictionary
+            if not isinstance(families_data, dict):
+                logger.warning(f"Families data is not a dictionary: {type(families_data)}")
+                return []
             
             for family_id, family_data in families_data.items():
                 if family_id == "legacy_chat_ids":  # Skip legacy data
@@ -195,7 +200,7 @@ class ProactiveScheduler:
             prompt = self.create_insight_prompt(family, sanitized_context)
             
             # Get reasoner response
-            reasoner_config = create_reasoner_config()
+            # reasoner_config = create_reasoner_config()  # TODO: Update to new client
             response = await get_reasoning_insights(
                 dyad="proactive",
                 features={},

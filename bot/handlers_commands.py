@@ -5,8 +5,9 @@ from loguru import logger
 from .profiles import profiles
 from .families import families
 from .dyad_registry import dyad_registry
-from .i18n import get_locale
-from .reason_client import create_reasoner_config
+from .i18n import get_locale, t
+from .utils.text import b, h
+from .reason_client import client
 import json
 from datetime import datetime
 from pathlib import Path
@@ -44,34 +45,31 @@ async def insights_command(message: Message):
     """Pull 3 latest proactive insights."""
     locale = get_locale(message.chat.id)
     
-    # Get user profile
+        # Get user profile
     profile = profiles.get_profile_by_chat_sync(message.chat.id)
     if not profile or not profile.get("family_id"):
-        if locale == "pt_br":
-            text = "❌ Nenhum perfil familiar encontrado. Complete o onboarding primeiro."
-        else:
-            text = "❌ No family profile found. Please complete onboarding first."
+        text = t(locale, "err_status")
         await message.answer(text)
         return
-    
+
     family_id = profile["family_id"]
-    
+
     # Get recent insights from storage
     from .storage import storage
     recent_events = storage.get_recent_events(family_id, limit=3, event_types=["insight"])
     
     if not recent_events:
         if locale == "pt_br":
-            text = "📊 **Insights Recentes**\n\nNenhum insight disponível ainda. Use os Dyads para gerar insights."
+            text = "📊 <b>Insights Recentes</b>\n\nNenhum insight disponível ainda. Use os Dyads para gerar insights."
         else:
-            text = "📊 **Recent Insights**\n\nNo insights available yet. Use Dyads to generate insights."
+            text = "📊 <b>Recent Insights</b>\n\nNo insights available yet. Use Dyads to generate insights."
         await message.answer(text)
         return
     
     if locale == "pt_br":
-        text = "📊 **Insights Recentes**\n\n"
+        text = "📊 <b>Insights Recentes</b>\n\n"
     else:
-        text = "📊 **Recent Insights**\n\n"
+        text = "📊 <b>Recent Insights</b>\n\n"
     
     for i, event in enumerate(recent_events, 1):
         text += f"{i}. {event.get('description', 'No description')}\n"
@@ -80,50 +78,134 @@ async def insights_command(message: Message):
     await message.answer(text)
 
 
+@router_commands.message(Command("help"))
+async def help_command(message: Message):
+    """Show clean, organized command help."""
+    from .strings import COPY, BRAND_NAME
+    locale = get_locale(message.chat.id)
+    
+    if locale == "pt_br":
+        help_text = (
+            f"✨ {b(BRAND_NAME)} — Seu Companheiro de Paternidade\n\n"
+            f"{COPY['help_header']}\n\n"
+            f"{b('Comandos:')}\n"
+            "• /familyprofile — painel da família\n"
+            "• /summondyad — abrir ajudantes\n"
+            "• /reasoning — ativar/desativar ME\n\n"
+            f"{b('Outros:')}\n"
+            "• /about — apresentação do Silli\n"
+            "• /feedback — enviar feedback\n\n"
+            f"{b('Como Usar:')}\n"
+            "Digite naturalmente ou use os comandos acima."
+        )
+    else:
+        help_text = (
+            f"✨ {b(BRAND_NAME)} — Your Parenting Companion\n\n"
+            f"{COPY['help_header']}\n\n"
+            f"{b('Commands:')}\n"
+            "• /familyprofile — family dashboard\n"
+            "• /summondyad — launch helpers\n"
+            "• /reasoning — toggle ME\n\n"
+            f"{b('Others:')}\n"
+            "• /about — Silli roadshow\n"
+            "• /feedback — send feedback"
+        )
+    
+    await message.answer(help_text)
+
+
+@router_commands.message(Command("ops_reason_stats"))
+async def ops_reason_stats(message: Message):
+    """Show AI reasoning performance metrics."""
+    from .admin import is_admin
+    
+    # Check admin access
+    if not is_admin(message.from_user.id):
+        await message.answer("Command not available.", parse_mode="HTML")
+        return
+    
+    from .metrics import metrics
+    import json
+    
+    # Get current metrics snapshot
+    stats = metrics.snapshot()
+    
+    # Format as JSON in code block
+    stats_json = json.dumps(stats, indent=2)
+    
+    # Calculate additional derived metrics
+    success_rate = (stats["ok"] / stats["n"] * 100) if stats["n"] > 0 else 0
+    
+    response_text = (
+        f"<b>ME Performance (5min window)</b>\n\n"
+        f"<code>{stats_json}</code>\n\n"
+        f"📊 <b>Summary:</b>\n"
+        f"• Success Rate: {success_rate:.1f}%\n"
+        f"• Total Calls: {stats['n']}\n"
+        f"• Median Latency: {stats['p50']}ms\n"
+        f"• P95 Latency: {stats['p95']}ms"
+    )
+    
+    await message.answer(response_text, parse_mode="HTML")
+
+
 @router_commands.message(Command("reasoning"))
 async def reasoning_command(message: Message):
     """Toggle AI reasoning on/off."""
+    logger.info(f"🔧 REASONING command received from chat {message.chat.id}")
     locale = get_locale(message.chat.id)
     
     # Get user profile
+    logger.info(f"🔧 Getting profile for chat {message.chat.id}")
     profile = profiles.get_profile_by_chat_sync(message.chat.id)
     if not profile or not profile.get("family_id"):
-        if locale == "pt_br":
-            text = "❌ Nenhum perfil familiar encontrado. Complete o onboarding primeiro."
-        else:
-            text = "❌ No family profile found. Please complete onboarding first."
+        logger.info(f"🔧 No profile or family_id for chat {message.chat.id}")
+        text = t(locale, "err_status")
         await message.answer(text)
         return
-    
+
     family_id = profile["family_id"]
-    
+    logger.info(f"🔧 Found family_id: {family_id}")
+
     # Get current family
-    family = await families.get_family(family_id)
+    family = families.get_family(family_id)
     if not family:
-        if locale == "pt_br":
-            text = "❌ Família não encontrada."
-        else:
-            text = "❌ Family not found."
+        logger.info(f"🔧 No family found for family_id: {family_id}")
+        text = t(locale, "err_status")
         await message.answer(text)
         return
     
     # Toggle reasoning
     current_reasoning = family.cloud_reasoning
     new_reasoning = not current_reasoning
+    logger.info(f"🔧 Toggling AI: {current_reasoning} -> {new_reasoning}")
     
-    # Update family
-    await families.upsert_fields(family_id, cloud_reasoning=new_reasoning)
-    
-    if locale == "pt_br":
-        if new_reasoning:
-            text = "✅ **IA Ativada**\n\nInsights com IA estão agora ativos para sua família."
+    # Update family - direct approach
+    try:
+        # Get the current family data
+        current_data = families._read()
+        if family_id in current_data:
+            # Update the cloud_reasoning field directly
+            current_data[family_id]["cloud_reasoning"] = new_reasoning
+            current_data[family_id]["updated_at"] = datetime.now().isoformat()
+            families._write(current_data)
+            logger.info(f"🔧 Successfully updated family reasoning")
         else:
-            text = "❌ **IA Desativada**\n\nInsights com IA estão agora desativados para sua família."
+            logger.error(f"🔧 Family not found in data: {family_id}")
+            await message.answer("Family not found")
+            return
+    except Exception as e:
+        logger.error(f"🔧 Error updating family: {e}")
+        await message.answer("Error updating AI settings")
+        return
+    
+    # Log the action
+    logger.info(f"reasoner_toggle family={family_id} user={message.chat.id} value={'on' if new_reasoning else 'off'}")
+    
+    if new_reasoning:
+        text = "🧠 ME (20B) is on. Tips may be richer." if locale == "en" else "🧠 ME (20B) está ativo. Dicas podem ser mais ricas."
     else:
-        if new_reasoning:
-            text = "✅ **AI Enabled**\n\nAI-powered insights are now active for your family."
-        else:
-            text = "❌ **AI Disabled**\n\nAI-powered insights are now disabled for your family."
+        text = "🧠 ME (20B) is off. You'll get basic tips only." if locale == "en" else "🧠 ME (20B) está desativado. Você receberá apenas dicas básicas."
     
     await message.answer(text)
 
@@ -131,107 +213,415 @@ async def reasoning_command(message: Message):
 @router_commands.message(Command("familyprofile"))
 async def familyprofile_command(message: Message):
     """Show family profile mini dashboard."""
+    logger.info(f"👪 FAMILYPROFILE command received from chat {message.chat.id}")
     locale = get_locale(message.chat.id)
     
     # Get user profile
     profile = profiles.get_profile_by_chat_sync(message.chat.id)
     if not profile or not profile.get("family_id"):
-        if locale == "pt_br":
-            text = "❌ Nenhum perfil familiar encontrado. Complete o onboarding primeiro."
-        else:
-            text = "❌ No family profile found. Please complete onboarding first."
+        text = t(locale, "err_status")
         await message.answer(text)
         return
-    
+
     family_id = profile["family_id"]
-    
+
     # Get family details
-    family = await families.get_family(family_id)
+    family = families.get_family(family_id)
     if not family:
-        if locale == "pt_br":
-            text = "❌ Família não encontrada."
-        else:
-            text = "❌ Family not found."
+        text = t(locale, "err_status")
         await message.answer(text)
         return
     
     # Build profile text
-    if locale == "pt_br":
-        text = f"👨‍👩‍👧‍👦 **Perfil da Família**\n\n"
-        text += f"**ID da Família:** `{family.family_id}`\n"
-        text += f"**Pai/Mãe:** {family.parent_name}\n"
-        text += f"**Crianças:** {len(family.children)}\n"
-        text += f"**Membros:** {len(family.members)}\n"
-        text += f"**Dyads Ativos:** {len(family.enabled_dyads)}\n"
-        text += f"**IA Ativa:** {'Sim' if family.cloud_reasoning else 'Não'}\n"
-        
-        edit_text = "✏️ Editar Membros"
-        sessions_text = "📊 Sessões"
-        tags_text = "🏷️ Tags"
-        generate_code_text = "🔗 Gerar Código"
-    else:
-        text = f"👨‍👩‍👧‍👦 **Family Profile**\n\n"
-        text += f"**Family ID:** `{family.family_id}`\n"
-        text += f"**Parent:** {family.parent_name}\n"
-        text += f"**Children:** {len(family.children)}\n"
-        text += f"**Members:** {len(family.members)}\n"
-        text += f"**Active Dyads:** {len(family.enabled_dyads)}\n"
-        text += f"**AI Active:** {'Yes' if family.cloud_reasoning else 'No'}\n"
-        
-        edit_text = "✏️ Edit Members"
-        sessions_text = "📊 Sessions"
-        tags_text = "🏷️ Tags"
-        generate_code_text = "🔗 Generate Code"
+    header = t(locale, "family_title").format(org="Silli")
+    ai_text = ("Sim" if family.cloud_reasoning else "Não") if locale=="pt_br" else ("Yes" if family.cloud_reasoning else "No")
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=edit_text, callback_data="family:edit_members")],
-        [InlineKeyboardButton(text=sessions_text, callback_data="family:view_sessions")],
-        [InlineKeyboardButton(text=tags_text, callback_data="family:view_tags")],
-        [InlineKeyboardButton(text=generate_code_text, callback_data="family:generate_code")]
-    ])
+    stats = t(locale, "family_stats").format(
+        bold_open="<b>", bold_close="</b>",
+        fid=h(family.family_id),
+        parent=h(family.parent_name),
+        children=len(family.children),
+        members=len(family.members),
+        dyads=len(family.enabled_dyads),
+        ai=ai_text
+    )
+    text = f"{b(header)}\n\n{stats}"
+    
+    # Check if setup is incomplete
+    enabled_dyads = getattr(family, 'enabled_dyads', []) or []
+    cloud_reasoning = getattr(family, 'cloud_reasoning', False)
+    
+    # Build interactive buttons
+    keyboard_buttons = []
+    
+    # Add Finish Setup button if setup is incomplete
+    if not enabled_dyads or not cloud_reasoning:
+        finish_setup_text = t(locale, "finish_header")
+        keyboard_buttons.append([InlineKeyboardButton(text=finish_setup_text, callback_data="finish:open")])
+    
+    # Add dyad management buttons if dyads are enabled
+    if enabled_dyads:
+        dyad_text = "🧬 Gerenciar Dyads" if locale == "pt_br" else "🧬 Manage Dyads"
+        keyboard_buttons.append([InlineKeyboardButton(text=dyad_text, callback_data="family:dyads")])
+    
+    # Add family profile management button
+    family_text = "👪 Gerenciar Perfil Familiar" if locale == "pt_br" else "👪 Manage Family Profile"
+    keyboard_buttons.append([InlineKeyboardButton(text=family_text, callback_data="family:manage")])
+    
+    # Add ME (Memetic Engine) toggle button
+    if cloud_reasoning:
+        me_text = "🧠 Desativar ME" if locale == "pt_br" else "🧠 Disable ME"
+        callback_data = "family:me:disable"
+    else:
+        me_text = "🧠 Ativar ME" if locale == "pt_br" else "🧠 Enable ME"
+        callback_data = "family:me:enable"
+    
+    keyboard_buttons.append([InlineKeyboardButton(text=me_text, callback_data=callback_data)])
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     
     await message.answer(text, reply_markup=keyboard)
+
+
+# Family profile button handlers
+@router_commands.callback_query(F.data == "family:dyads")
+async def family_dyads_callback(callback: CallbackQuery):
+    """Handle comprehensive dyad management from family profile."""
+    await callback.answer()
+    
+    chat_id = callback.message.chat.id
+    locale = get_locale(chat_id)
+    
+    # Get user profile and family
+    profile = profiles.get_profile_by_chat_sync(chat_id)
+    if not profile or not profile.get("family_id"):
+        await callback.message.answer(t(locale, "err_status"))
+        return
+
+    family_id = profile["family_id"]
+    family = families.get_family(family_id)
+    if not family:
+        await callback.message.answer(t(locale, "err_status"))
+        return
+    
+    # Get all available dyads and family's enabled dyads
+    all_dyads = dyad_registry.get_all_dyads()
+    enabled_dyads = set(getattr(family, 'enabled_dyads', []) or [])
+    
+    # Build the comprehensive dyad management interface
+    if locale == "pt_br":
+        header = "🧬 **Gerenciar Dyads**\n\n"
+        enabled_section = "✅ **Dyads Ativados:**\n"
+        available_section = "\n🔓 **Dyads Disponíveis:**\n"
+        no_enabled = "Nenhum dyad ativado ainda.\n"
+        no_available = "Todos os dyads estão ativados!"
+    else:
+        header = "🧬 **Manage Dyads**\n\n"
+        enabled_section = "✅ **Enabled Dyads:**\n"
+        available_section = "\n🔓 **Available Dyads:**\n"
+        no_enabled = "No dyads enabled yet.\n"
+        no_available = "All dyads are enabled!"
+    
+    text = header
+    keyboard_buttons = []
+    
+    # Show enabled dyads with launch and disable buttons
+    if enabled_dyads:
+        text += enabled_section
+        for dyad_id in enabled_dyads:
+            dyad_data = all_dyads.get(dyad_id, {})
+            dyad_name = dyad_data.get("name", dyad_id.replace('_', ' ').title())
+            text += f"• {dyad_name}\n"
+            
+            # Add buttons for each enabled dyad
+            launch_text = "🚀 Launch" if locale == "en" else "🚀 Abrir"
+            disable_text = "❌ Disable" if locale == "en" else "❌ Desativar"
+            
+            keyboard_buttons.append([
+                InlineKeyboardButton(text=f"{launch_text} {dyad_name}", callback_data=f"fs:dyad:launch:{dyad_id}"),
+                InlineKeyboardButton(text=disable_text, callback_data=f"dyad:disable:{dyad_id}")
+            ])
+    else:
+        text += no_enabled
+    
+    # Show available dyads with enable buttons
+    available_dyads = [dyad_id for dyad_id in all_dyads.keys() if dyad_id not in enabled_dyads]
+    
+    if available_dyads:
+        text += available_section
+        for dyad_id in available_dyads:
+            dyad_data = all_dyads.get(dyad_id, {})
+            dyad_name = dyad_data.get("name", dyad_id.replace('_', ' ').title())
+            description = dyad_data.get("description", "")
+            text += f"• {dyad_name}\n"
+            if description:
+                text += f"  _{description}_\n"
+            
+            # Add enable button
+            enable_text = "✅ Enable" if locale == "en" else "✅ Ativar"
+            keyboard_buttons.append([
+                InlineKeyboardButton(text=f"{enable_text} {dyad_name}", callback_data=f"dyad:enable:{dyad_id}")
+            ])
+    else:
+        if enabled_dyads:  # Only show this if there are enabled dyads
+            text += f"\n{no_available}"
+    
+    # Add back button
+    back_text = "◀️ Back" if locale == "en" else "◀️ Voltar"
+    keyboard_buttons.append([InlineKeyboardButton(text=back_text, callback_data="family:back")])
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@router_commands.callback_query(F.data.startswith("dyad:enable:"))
+async def dyad_enable_callback(callback: CallbackQuery):
+    """Handle enabling a dyad."""
+    await callback.answer()
+    
+    dyad_id = callback.data.split(":", 2)[-1]
+    chat_id = callback.message.chat.id
+    locale = get_locale(chat_id)
+    
+    # Get user profile and family
+    profile = profiles.get_profile_by_chat_sync(chat_id)
+    if not profile or not profile.get("family_id"):
+        await callback.message.answer(t(locale, "err_status"))
+        return
+
+    family_id = profile["family_id"]
+    family = families.get_family(family_id)
+    if not family:
+        await callback.message.answer(t(locale, "err_status"))
+        return
+    
+    # Enable the dyad
+    try:
+        current_data = families._read()
+        if family_id in current_data:
+            enabled_dyads = set(current_data[family_id].get("enabled_dyads", []))
+            enabled_dyads.add(dyad_id)
+            current_data[family_id]["enabled_dyads"] = list(enabled_dyads)
+            current_data[family_id]["updated_at"] = datetime.now().isoformat()
+            families._write(current_data)
+            
+            # Get dyad name for confirmation
+            dyad_data = dyad_registry.get_dyad(dyad_id)
+            dyad_name = dyad_data.get("name", dyad_id.replace('_', ' ').title()) if dyad_data else dyad_id
+            
+            # Show confirmation
+            if locale == "pt_br":
+                text = f"✅ {dyad_name} foi ativado!"
+            else:
+                text = f"✅ {dyad_name} has been enabled!"
+            
+            await callback.message.answer(text)
+            
+            logger.info(f"Dyad enabled: {dyad_id} for family {family_id}")
+            
+            # Refresh the dyad management interface
+            await family_dyads_callback(callback)
+            
+        else:
+            await callback.message.answer("Family not found")
+    except Exception as e:
+        logger.error(f"Error enabling dyad {dyad_id}: {e}")
+        await callback.message.answer("Error enabling dyad")
+
+
+@router_commands.callback_query(F.data.startswith("dyad:disable:"))
+async def dyad_disable_callback(callback: CallbackQuery):
+    """Handle disabling a dyad."""
+    await callback.answer()
+    
+    dyad_id = callback.data.split(":", 2)[-1]
+    chat_id = callback.message.chat.id
+    locale = get_locale(chat_id)
+    
+    # Get user profile and family
+    profile = profiles.get_profile_by_chat_sync(chat_id)
+    if not profile or not profile.get("family_id"):
+        await callback.message.answer(t(locale, "err_status"))
+        return
+
+    family_id = profile["family_id"]
+    family = families.get_family(family_id)
+    if not family:
+        await callback.message.answer(t(locale, "err_status"))
+        return
+    
+    # Disable the dyad
+    try:
+        current_data = families._read()
+        if family_id in current_data:
+            enabled_dyads = set(current_data[family_id].get("enabled_dyads", []))
+            enabled_dyads.discard(dyad_id)  # Remove if present
+            current_data[family_id]["enabled_dyads"] = list(enabled_dyads)
+            current_data[family_id]["updated_at"] = datetime.now().isoformat()
+            families._write(current_data)
+            
+            # Get dyad name for confirmation
+            dyad_data = dyad_registry.get_dyad(dyad_id)
+            dyad_name = dyad_data.get("name", dyad_id.replace('_', ' ').title()) if dyad_data else dyad_id
+            
+            # Show confirmation
+            if locale == "pt_br":
+                text = f"❌ {dyad_name} foi desativado."
+            else:
+                text = f"❌ {dyad_name} has been disabled."
+            
+            await callback.message.answer(text)
+            
+            logger.info(f"Dyad disabled: {dyad_id} for family {family_id}")
+            
+            # Refresh the dyad management interface
+            await family_dyads_callback(callback)
+            
+        else:
+            await callback.message.answer("Family not found")
+    except Exception as e:
+        logger.error(f"Error disabling dyad {dyad_id}: {e}")
+        await callback.message.answer("Error disabling dyad")
+
+
+@router_commands.callback_query(F.data.startswith("family:me:"))
+async def family_me_toggle_callback(callback: CallbackQuery):
+    """Handle ME (Memetic Engine) toggle from family profile."""
+    await callback.answer()
+    
+    action = callback.data.split(":")[-1]  # "enable" or "disable"
+    chat_id = callback.message.chat.id
+    locale = get_locale(chat_id)
+    
+    # Get user profile
+    profile = profiles.get_profile_by_chat_sync(chat_id)
+    if not profile or not profile.get("family_id"):
+        await callback.message.answer(t(locale, "err_status"))
+        return
+
+    family_id = profile["family_id"]
+    family = families.get_family(family_id)
+    if not family:
+        await callback.message.answer(t(locale, "err_status"))
+        return
+    
+    # Toggle ME (using the same direct approach as /reasoning command)
+    new_reasoning = (action == "enable")
+    try:
+        current_data = families._read()
+        if family_id in current_data:
+            current_data[family_id]["cloud_reasoning"] = new_reasoning
+            current_data[family_id]["updated_at"] = datetime.now().isoformat()
+            families._write(current_data)
+        else:
+            await callback.message.answer("Family not found")
+            return
+    except Exception as e:
+        logger.error(f"Error updating family ME: {e}")
+        await callback.message.answer("Error updating ME settings")
+        return
+    
+    # Log the action
+    logger.info(f"ME_toggle family={family_id} user={chat_id} action={action}")
+    
+    # Send confirmation
+    if new_reasoning:
+        text = "🧠 ME ativado!" if locale == "pt_br" else "🧠 ME enabled!"
+    else:
+        text = "🧠 ME desativado!" if locale == "pt_br" else "🧠 ME disabled!"
+    
+    await callback.message.answer(text)
+    
+    # Refresh the family profile
+    class MockMessage:
+        def __init__(self, chat_id):
+            self.chat = type('Chat', (), {'id': chat_id})()
+            
+        async def answer(self, text, reply_markup=None):
+            await callback.message.edit_text(text, reply_markup=reply_markup)
+    
+    mock_message = MockMessage(chat_id)
+    await familyprofile_command(mock_message)
+
+
+@router_commands.callback_query(F.data == "family:manage")
+async def family_manage_callback(callback: CallbackQuery):
+    """Handle family profile management from family profile."""
+    await callback.answer()
+    
+    chat_id = callback.message.chat.id
+    locale = get_locale(chat_id)
+    
+    # Show family management options
+    if locale == "pt_br":
+        text = "👪 **Gerenciar Perfil Familiar**\n\nEscolha uma opção:"
+        edit_text = "✏️ Editar Informações"
+        members_text = "👥 Gerenciar Membros"
+        children_text = "👶 Gerenciar Filhos"
+    else:
+        text = "👪 **Manage Family Profile**\n\nChoose an option:"
+        edit_text = "✏️ Edit Information"
+        members_text = "👥 Manage Members"
+        children_text = "👶 Manage Children"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=edit_text, callback_data="family:edit")],
+        [InlineKeyboardButton(text=members_text, callback_data="family:members")],
+        [InlineKeyboardButton(text=children_text, callback_data="family:children")],
+        [InlineKeyboardButton(text="◀️ Back", callback_data="family:back")]
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@router_commands.callback_query(F.data == "family:back")
+async def family_back_callback(callback: CallbackQuery):
+    """Handle back button from family management."""
+    await callback.answer()
+    
+    # Go back to family profile
+    chat_id = callback.message.chat.id
+    class MockMessage:
+        def __init__(self, chat_id):
+            self.chat = type('Chat', (), {'id': chat_id})()
+            
+        async def answer(self, text, reply_markup=None):
+            await callback.message.edit_text(text, reply_markup=reply_markup)
+    
+    mock_message = MockMessage(chat_id)
+    await familyprofile_command(mock_message)
 
 
 @router_commands.message(Command("summondyad"))
 async def summondyad_command(message: Message):
     """Show inline list of enabled Dyads."""
+    logger.info(f"🔧 SUMMONDYAD command received from chat {message.chat.id}")
     locale = get_locale(message.chat.id)
     
     # Get user profile
     profile = profiles.get_profile_by_chat_sync(message.chat.id)
     if not profile or not profile.get("family_id"):
-        if locale == "pt_br":
-            text = "❌ Nenhum perfil familiar encontrado. Complete o onboarding primeiro."
-        else:
-            text = "❌ No family profile found. Please complete onboarding first."
+        text = t(locale, "err_status")
         await message.answer(text)
         return
-    
+
     family_id = profile["family_id"]
-    
+
     # Get family details
-    family = await families.get_family(family_id)
+    family = families.get_family(family_id)
     if not family:
-        if locale == "pt_br":
-            text = "❌ Família não encontrada."
-        else:
-            text = "❌ Family not found."
+        text = t(locale, "err_status")
         await message.answer(text)
         return
     
     if not family.enabled_dyads:
-        if locale == "pt_br":
-            text = "❌ Nenhum Dyad ativado. Use /familyprofile para ativar Dyads."
-        else:
-            text = "❌ No Dyads enabled. Use /familyprofile to enable Dyads."
+        text = t(locale, "dyads_empty")
         await message.answer(text)
         return
     
-    if locale == "pt_br":
-        text = "🎯 **Dyads Disponíveis**\n\nEscolha um Dyad para iniciar:"
-    else:
-        text = "🎯 **Available Dyads**\n\nChoose a Dyad to start:"
+    title = b(t(locale, "dyads_available_title"))
+    subtitle = t(locale, "dyads_choose")
+    text = f"{title}\n\n{subtitle}"
     
     # Create buttons for enabled Dyads
     keyboard_buttons = []
@@ -241,7 +631,7 @@ async def summondyad_command(message: Message):
             dyad_name = dyad_info.get("name", dyad_id)
             icon = dyad_info.get("icon", "🎯")
             button_text = f"{icon} {dyad_name}"
-            keyboard_buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"dyad:summon:{dyad_id}")])
+            keyboard_buttons.append([InlineKeyboardButton(text=button_text, callback_data=f"fs:dyad:launch:{dyad_id}")])
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     await message.answer(text, reply_markup=keyboard)
@@ -421,52 +811,15 @@ async def scheduler_command(message: Message):
     await message.answer(text, reply_markup=keyboard)
 
 
-# Callback handlers for command buttons
-@router_commands.callback_query(F.data.startswith("dyad:summon:"))
-async def handle_dyad_summon(callback: CallbackQuery):
-    """Handle Dyad summoning from command."""
-    await callback.answer()
-    
-    dyad_id = callback.data.split(":")[2]
-    locale = get_locale(callback.message.chat.id)
-    
-    # Get user profile
-    profile = profiles.get_profile_by_chat_sync(callback.message.chat.id)
-    if not profile or not profile.get("family_id"):
-        if locale == "pt_br":
-            text = "❌ Nenhum perfil familiar encontrado."
-        else:
-            text = "❌ No family profile found."
-        await callback.message.edit_text(text)
-        return
-    
-    family_id = profile["family_id"]
-    
-    # Create Dyad URL
-    try:
-        dyad_url = dyad_registry.create_dyad_url(family_id, dyad_id, locale)
-        
-        dyad_info = dyad_registry.get_dyad(dyad_id)
-        dyad_name = dyad_info.get("name", dyad_id) if dyad_info else dyad_id
-        
-        if locale == "pt_br":
-            text = f"🎯 **{dyad_name}**\n\nClique no link abaixo para iniciar:"
-        else:
-            text = f"🎯 **{dyad_name}**\n\nClick the link below to start:"
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Launch", url=dyad_url)]
-        ])
-        
-        await callback.message.edit_text(text, reply_markup=keyboard)
-        
-    except Exception as e:
-        logger.error(f"Failed to create Dyad URL: {e}")
-        if locale == "pt_br":
-            text = "❌ Erro ao criar link do Dyad."
-        else:
-            text = "❌ Error creating Dyad link."
-        await callback.message.edit_text(text)
+# Legacy dyad summon handler REMOVED - consolidated under finish_setup router with fs: prefix
+
+
+# Debug catch-all for commands router
+@router_commands.callback_query()
+async def debug_commands_catchall(callback: CallbackQuery):
+    """Debug catch-all for commands router."""
+    logger.warning(f"[DEBUG COMMANDS] Unhandled callback: {callback.data}")
+    await callback.answer("Debug: Commands router received callback")
 
 
 @router_commands.callback_query(F.data.startswith("scheduler:"))
@@ -515,7 +868,7 @@ async def handle_scheduler_controls(callback: CallbackQuery):
                 text = "❌ No family profile found."
         else:
             family_id = profile["family_id"]
-            family = await families.get_family(family_id)
+            family = families.get_family(family_id)
             if not family:
                 if locale == "pt_br":
                     text = "❌ Família não encontrada."

@@ -9,16 +9,23 @@ from .profiles import FamilyProfile, Child
 class FamiliesStore:
     def __init__(self, path: str = "data/families.json"):
         self.path = Path(path)
+        self.counter_path = Path("data/family_counter.json")
         self._lock = threading.Lock()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if not self.path.exists():
             self._write({})
+        if not self.counter_path.exists():
+            self._write_counter({"next_id": 1})
 
     def _read(self) -> Dict[str, Any]:
         if not self.path.exists():
             return {}
         try:
             data = json.loads(self.path.read_text(encoding="utf-8"))
+            # Safety check: ensure data is a dictionary
+            if not isinstance(data, dict):
+                logger.warning(f"Families file contains non-dict data: {type(data)}, initializing as empty dict")
+                return {}
             return data
         except Exception as e:
             logger.error(f"Error reading families file: {e}")
@@ -26,6 +33,77 @@ class FamiliesStore:
 
     def _write(self, data: Dict[str, Any]) -> None:
         self.path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+    
+    def _read_counter(self) -> Dict[str, Any]:
+        if not self.counter_path.exists():
+            return {"next_id": 1}
+        try:
+            return json.loads(self.counter_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.error(f"Error reading counter file: {e}")
+            return {"next_id": 1}
+    
+    def _write_counter(self, counter_data: Dict[str, Any]) -> None:
+        self.counter_path.write_text(json.dumps(counter_data, indent=2), encoding="utf-8")
+    
+    def generate_next_family_id(self) -> str:
+        """Generate the next sequential family ID (Family #000001, #000002, etc.)."""
+        with self._lock:
+            counter_data = self._read_counter()
+            next_id = counter_data["next_id"]
+            family_id = f"Family #{next_id:06d}"  # Format as Family #000001
+            
+            # Increment counter for next family
+            counter_data["next_id"] = next_id + 1
+            self._write_counter(counter_data)
+            
+            logger.info(f"Generated new family ID: {family_id}")
+            return family_id
+    
+    def migrate_to_sequential_ids(self) -> Dict[str, str]:
+        """Migrate existing families to sequential ID system. Returns mapping of old_id -> new_id."""
+        with self._lock:
+            data = self._read()
+            counter_data = self._read_counter()
+            
+            # If no families exist, nothing to migrate
+            if not data:
+                logger.info("No families to migrate")
+                return {}
+            
+            mapping = {}
+            new_data = {}
+            next_id = counter_data["next_id"]
+            
+            # Sort families by creation date for consistent numbering
+            families_with_dates = []
+            for old_id, family_data in data.items():
+                created_at = family_data.get("created_at", "1970-01-01T00:00:00")
+                families_with_dates.append((created_at, old_id, family_data))
+            
+            families_with_dates.sort(key=lambda x: x[0])  # Sort by creation date
+            
+            for _, old_id, family_data in families_with_dates:
+                # Generate new sequential ID
+                new_id = f"Family #{next_id:06d}"
+                
+                # Update family data with new ID
+                family_data["family_id"] = new_id
+                family_data["old_family_id"] = old_id  # Keep reference to old ID
+                
+                new_data[new_id] = family_data
+                mapping[old_id] = new_id
+                
+                logger.info(f"Migrated {old_id} -> {new_id}")
+                next_id += 1
+            
+            # Update counter and save new data
+            counter_data["next_id"] = next_id
+            self._write(new_data)
+            self._write_counter(counter_data)
+            
+            logger.info(f"Migration complete: {len(mapping)} families migrated")
+            return mapping
 
     def save_family(self, family_data: Dict[str, Any]) -> None:
         """Save a family profile."""
@@ -218,6 +296,10 @@ class FamiliesStore:
         """Legacy method - list all chat IDs."""
         with self._lock:
             data = self._read()
+            # Safety check: ensure data is a dictionary
+            if not isinstance(data, dict):
+                logger.warning(f"Families data is not a dictionary: {type(data)}")
+                return []
             return data.get("legacy_chat_ids", [])
 
 

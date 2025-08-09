@@ -78,3 +78,29 @@ def get_supported_locales() -> list:
 def is_supported_locale(locale: str) -> bool:
     """Check if a locale is supported."""
     return locale in SUPPORTED_LOCALES
+
+def get_localized_text(value, locale: str) -> str:
+    """
+    Accepts either a string or a dict of { 'en': '...', 'pt_br': '...' }.
+    Returns the best localized string with safe fallbacks.
+    """
+    if isinstance(value, dict):
+        return value.get(locale) or value.get('en') or next(iter(value.values()), '')
+    return value or ''
+
+def t(lang: str, key: str) -> str:
+    """
+    Get a localized string from the centralized strings dictionary.
+    
+    Args:
+        lang: Language code (e.g., "en", "pt_br")
+        key: String key to look up
+        
+    Returns:
+        Localized string with fallbacks to English then the key itself
+    """
+    from bot.i18n_strings import STRINGS
+    
+    lang = (lang or "en").lower()
+    bundle = STRINGS.get(lang, STRINGS["en"])
+    return bundle.get(key, STRINGS["en"].get(key, key))

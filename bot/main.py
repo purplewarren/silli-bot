@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 # Load environment variables first, before any other imports
 load_dotenv()
 from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
 from loguru import logger
 from .handlers import router
 from .puller import start_pull_loop
@@ -19,7 +20,7 @@ from .gate_middleware import GateMiddleware
 from .profiles import profiles
 from .handlers_profile import router_profile
 from .handlers_insights import router_insights
-from .reason_client import create_reasoner_config
+from .reason_client import client as reasoner_client
 
 
 def setup_logging():
@@ -69,32 +70,13 @@ def check_dependencies():
 
 
 async def set_commands(bot):
+    """Set a clean, minimal command list for better UX."""
     commands = [
-        types.BotCommand(command="start", description="Begin onboarding and consent to privacy notice"),
-        types.BotCommand(command="help", description="See all available commands"),
-        types.BotCommand(command="lang", description="Change language (en/pt_br)"),
-        types.BotCommand(command="about", description="Re-run Silli introduction"),
-        types.BotCommand(command="insights", description="View recent insights"),
-        types.BotCommand(command="reasoning", description="Toggle AI on/off"),
-        types.BotCommand(command="familyprofile", description="Family profile dashboard"),
-        types.BotCommand(command="summondyad", description="List enabled Dyads"),
-        types.BotCommand(command="feedback", description="Send feedback"),
-        types.BotCommand(command="reason_model", description="Show AI model status"),
-        types.BotCommand(command="scheduler", description="Proactive scheduler status"),
-        types.BotCommand(command="more", description="Show all legacy commands"),
-        # Legacy commands (hidden but available)
-        types.BotCommand(command="summon_helper", description="Choose and summon a helper (Dyad)"),
-        types.BotCommand(command="summon_night_helper", description="Summon Parent Night Helper"),
-        types.BotCommand(command="summon_meal_mood", description="Summon Meal Mood Companion"),
-        types.BotCommand(command="summon_tantrum_translator", description="Summon Tantrum Translator"),
-        types.BotCommand(command="analyze", description="Send a voice note for quick analysis"),
-        types.BotCommand(command="ingest", description="Upload a PWA session JSON report"),
-        types.BotCommand(command="export", description="Download your derived event log (JSONL)"),
-        types.BotCommand(command="reason_on", description="Enable AI-powered insights for your family"),
-        types.BotCommand(command="reason_off", description="Disable AI-powered insights for your family"),
-        types.BotCommand(command="reason_status", description="Check AI insights status for your family"),
-        types.BotCommand(command="reason_stats", description="View reasoner performance statistics (admin)"),
-        types.BotCommand(command="privacy_offline", description="Stop proactive messages (reply-only mode)"),
+        types.BotCommand(command="start", description="Begin onboarding"),
+        types.BotCommand(command="familyprofile", description="Family dashboard"),
+        types.BotCommand(command="summondyad", description="Launch helpers"),
+        types.BotCommand(command="reasoning", description="Toggle AI"),
+        types.BotCommand(command="help", description="All commands"),
     ]
     await bot.set_my_commands(commands)
 
@@ -121,35 +103,71 @@ async def main():
         Path("logs").mkdir(exist_ok=True)
         
         # Create bot and dispatcher
-        bot = Bot(token=bot_token)
+        from aiogram.client.default import DefaultBotProperties
+        bot = Bot(token=bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
         dp = Dispatcher()
-        dp.update.middleware(GateMiddleware())
         
-        # Include routers (order matters - more specific routers first)
-        from .handlers_gate import router_gate
-        from .handlers_onboarding import router_onboarding
-        from .handlers_family_link import router_family_link
-        from .handlers_family_create import router_family_create
-        from .handlers_commands import router_commands
-        from .handlers_reasoner_info import router_reasoner_info
-        from .handlers_i18n import router_i18n
-        dp.include_router(router_gate)  # Gate callbacks first
-        dp.include_router(router_onboarding)  # Include first for state management
-        dp.include_router(router_family_link)  # Family linking
-        dp.include_router(router_family_create)  # Family creation
-        dp.include_router(router_commands)  # New command handlers
-        dp.include_router(router_reasoner_info)  # Reasoner info commands
-        dp.include_router(router_i18n)  # Include i18n router early
-        dp.include_router(router_profile)
-        dp.include_router(router_insights)
-        dp.include_router(router)  # Main router last (catch-all)
+        # Global error handler (no more silent fails)
+        from aiogram.types.error_event import ErrorEvent
+
+        @dp.errors()
+        async def on_error(event: ErrorEvent):
+            logger.exception("[GLOBAL ERROR] Unhandled exception", exc_info=event.exception)
+            try:
+                upd = event.update
+                chat_id = getattr(getattr(upd, "message", None), "chat", None) and upd.message.chat.id
+                if not chat_id and getattr(upd, "callback_query", None):
+                    chat_id = upd.callback_query.message.chat.id
+                if chat_id:
+                    await bot.send_message(chat_id, "⚠️ Something went wrong. We're on it.")
+            except Exception:
+                pass
+
+        # Safe-mode router implementation
+        from .diag_router import diag_router
+        from .routers_safe import safe
+        
+        # Skip diagnostic router in normal mode - it consumes all messages
+        # dp.include_router(diag_router)
+        # dp.include_router(safe)
+        
+        # Only include other routers if not in safe mode
+        if os.getenv("SAFE_MODE") != "1":
+            logger.info("Normal mode - including all routers")
+            from .handlers_gate import router_gate
+            from .handlers_onboarding import router_onboarding
+            from .handlers_family_link import router_family_link
+            from .handlers_family_create import router_family_create
+            from .handlers_finish_setup import router_finish_setup
+            from .handlers_commands import router_commands
+            from .handlers_reasoner_info import router_reasoner_info
+            from .handlers_i18n import router_i18n
+            from .handlers_reason_debug import router_reason_debug
+            
+            dp.include_router(router_reason_debug)   # Debug commands - HIGHEST PRIORITY
+            dp.include_router(router_finish_setup)   # has fs:/dyad:/ai: callbacks
+            dp.include_router(router_commands)       # /reasoning, /familyprofile, /summondyad, etc. - HIGH PRIORITY
+            dp.include_router(router_onboarding)     # /start command - Include for state management
+            dp.include_router(router_family_link)    # Family linking
+            dp.include_router(router_family_create)  # Family creation
+            dp.include_router(router_reasoner_info)  # Reasoner info commands
+            dp.include_router(router_i18n)           # Include i18n router
+            dp.include_router(router_gate)           # any broad/catch-all handlers
+            dp.include_router(router_profile)
+            dp.include_router(router_insights)
+            dp.include_router(router)  # Main router last (catch-all)
+        else:
+            logger.info("SAFE MODE - only diagnostic and safe routers loaded")
         
         # Start background pull loop
         asyncio.create_task(start_pull_loop(bot))
         
-        # Start proactive scheduler
-        from .scheduler import start_scheduler
-        asyncio.create_task(start_scheduler())
+        # Start proactive scheduler only if not in safe mode
+        if os.getenv("SAFE_MODE") != "1":
+            from .scheduler import start_scheduler
+            asyncio.create_task(start_scheduler())
+        else:
+            logger.info("SAFE MODE - scheduler disabled")
         
         # Register commands
         await set_commands(bot)
@@ -160,18 +178,20 @@ async def main():
         logger.info(f"KEEP_RAW_MEDIA: {os.getenv('KEEP_RAW_MEDIA', 'false')}")
         
         # Log reasoner configuration
-        reasoner_config = create_reasoner_config()
-        logger.info(f"Reasoner enabled: {reasoner_config.enabled}")
-        if reasoner_config.enabled:
-            logger.info(f"Reasoner base_url: {reasoner_config.base_url}")
-            logger.info(f"Reasoner model_hint: {reasoner_config.model_hint}")
-            logger.info(f"Reasoner temperature: {reasoner_config.temperature}")
-            logger.info(f"Reasoner timeout: {reasoner_config.timeout_s}s")
-        else:
-            logger.info("Reasoner disabled - AI insights will not be available")
+        # Log reasoner status
+        reasoner_status = reasoner_client.status()
+        logger.info(f"Reasoner model_hint: {reasoner_status.get('model_hint', 'unknown')}")
+        logger.info(f"Reasoner model_used: {reasoner_status.get('model_used', 'unknown')}")
+        logger.info(f"Reasoner base_url: {reasoner_client.base}")
+        logger.info(f"Reasoner timeout: {reasoner_client.timeout}s")
+        
+        # Hard guarantee: delete webhook and explicitly set allowed updates
+        await bot.delete_webhook(drop_pending_updates=True)
+        allowed = dp.resolve_used_update_types()
+        logger.info(f"[NORMAL] allowed_updates={allowed}")
         
         # Start polling
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, allowed_updates=allowed)
         
     except KeyboardInterrupt:
         logger.info("Shutting down Silli Bot...")
@@ -180,5 +200,16 @@ async def main():
         sys.exit(1)
 
 
+async def _run_normal():
+    # Normal startup with full bot architecture
+    await main()
+
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    import logging
+    logging.basicConfig(level=getattr(logging, os.getenv("LOG_LEVEL","INFO")))
+    
+    if os.getenv("SAFE_MODE") == "1":
+        from bot.safe_main import run_safe
+        asyncio.run(run_safe())
+    else:
+        asyncio.run(_run_normal()) 

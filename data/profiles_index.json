@@ -26,13 +26,17 @@
       "outdoor_activities"
     ],
     "cloud_reasoning": false,
+    "locale": "en",
+    "status": "unlinked",
+    "enabled_dyads": [],
+    "consents": {},
     "created_at": "2025-08-05 22:39:30.174860",
     "updated_at": "2025-08-05 22:39:30.175836",
     "version": 1,
     "complete": true
   },
   "fam_2130406580": {
-    "family_id": "fam_2130406580",
+    "family_id": "Family #000001",
     "creator_chat_id": 2130406580,
     "members": [
       2130406580
@@ -52,8 +56,12 @@
       "divorced parents"
     ],
     "cloud_reasoning": true,
+    "locale": "en",
+    "status": "active",
+    "enabled_dyads": [],
+    "consents": {},
     "created_at": "2025-08-06 16:28:26.012877",
-    "updated_at": "2025-08-07 14:30:31.793409",
+    "updated_at": "2025-08-08 23:24:04.238440",
     "version": 1,
     "complete": true
   }

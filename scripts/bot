@@ -1,0 +1,4 @@
+#!/bin/bash
+# Simple bot management wrapper
+cd "$(dirname "$0")/.."
+python scripts/bot_manager.py "$@"

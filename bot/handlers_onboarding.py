@@ -5,7 +5,8 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command
 from loguru import logger
 from .profiles import profiles
-from .i18n import get_locale, set_locale
+from .i18n import get_locale, set_locale, t
+from .utils.text import b, h
 from .storage import Storage, EventRecord
 import json
 from datetime import datetime
@@ -34,16 +35,16 @@ class Onboarding(StatesGroup):
 # Road-show content
 ROADSHOW_CONTENT = {
     "en": [
-        "🚀 **Welcome to Silli**\n\nI'm your AI companion for family wellness. I help parents track and improve their children's daily routines.",
-        "🎯 **What I Do**\n\n• Monitor sleep patterns and tantrum triggers\n• Analyze meal moods and nutrition insights\n• Provide personalized recommendations\n• Keep everything private and secure",
-        "🔒 **Privacy First**\n\n• No raw audio leaves your device\n• All analysis happens locally\n• Your family data stays private\n• You control what's shared",
-        "✨ **Ready to Start?**\n\nLet's set up your family profile to get personalized insights."
+        "🚀 <b>Welcome to Silli</b>\n\nI'm your AI companion for family wellness. I help parents track and improve their children's daily routines.",
+        "🎯 <b>What I Do</b>\n\n• Monitor sleep patterns and tantrum triggers\n• Analyze meal moods and nutrition insights\n• Provide personalized recommendations\n• Keep everything private and secure",
+        "🔒 <b>Privacy First</b>\n\n• No raw audio leaves your device\n• All analysis happens locally\n• Your family data stays private\n• You control what's shared",
+        "✨ <b>Ready to Start?</b>\n\nLet's set up your family profile to get personalized insights."
     ],
     "pt_br": [
-        "🚀 **Bem-vindo ao Silli**\n\nSou seu companheiro de IA para o bem-estar familiar. Ajudo pais a rastrear e melhorar as rotinas diárias de seus filhos.",
-        "🎯 **O Que Faço**\n\n• Monitoro padrões de sono e gatilhos de birra\n• Analiso humores das refeições e insights nutricionais\n• Forneço recomendações personalizadas\n• Mantenho tudo privado e seguro",
-        "🔒 **Privacidade em Primeiro Lugar**\n\n• Nenhum áudio bruto sai do seu dispositivo\n• Toda análise acontece localmente\n• Seus dados familiares ficam privados\n• Você controla o que é compartilhado",
-        "✨ **Pronto para Começar?**\n\nVamos configurar seu perfil familiar para obter insights personalizados."
+        "🚀 <b>Bem-vindo ao Silli</b>\n\nSou seu companheiro de IA para o bem-estar familiar. Ajudo pais a rastrear e melhorar as rotinas diárias de seus filhos.",
+        "🎯 <b>O Que Faço</b>\n\n• Monitoro padrões de sono e gatilhos de birra\n• Analiso humores das refeições e insights nutricionais\n• Forneço recomendações personalizadas\n• Mantenho tudo privado e seguro",
+        "🔒 <b>Privacidade em Primeiro Lugar</b>\n\n• Nenhum áudio bruto sai do seu dispositivo\n• Toda análise acontece localmente\n• Seus dados familiares ficam privados\n• Você controla o que é compartilhado",
+        "✨ <b>Pronto para Começar?</b>\n\nVamos configurar seu perfil familiar para obter insights personalizados."
     ]
 }
 
@@ -404,6 +405,8 @@ async def complete_family_creation(message: Message, state: FSMContext):
         }],
         "lifestyle_tags": data.get("lifestyle_tags", "").split(", ") if data.get("lifestyle_tags") else [],
         "enabled_dyads": [],
+        "cloud_reasoning": False,
+        "consents": {},
         "status": "active",
         "created_at": datetime.now(),
         "updated_at": datetime.now()
@@ -430,8 +433,9 @@ async def complete_family_creation(message: Message, state: FSMContext):
     
     await message.edit_text(text)
     
-    # Show Dyad selection
-    await show_dyad_selection(message)
+    # Show finish setup card instead of dyad selection
+    from .handlers_finish_setup import show_finish_setup_card
+    await show_finish_setup_card(message, family_id)
 
 
 async def show_dyad_selection(message: Message):

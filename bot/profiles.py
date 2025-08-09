@@ -43,6 +43,7 @@ class FamilyProfile(BaseModel):
     locale: str = "en"  # User language preference
     status: str = "unlinked"  # "unlinked", "active", "inactive"
     enabled_dyads: List[str] = []  # List of enabled dyad IDs
+    consents: Dict[str, Dict[str, Any]] = {}  # Dyad consent tracking
     created_at: datetime
     updated_at: datetime
     version: int = 1
